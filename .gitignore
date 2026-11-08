@@ -6,3 +6,4 @@ node_modules/
 .next/
 .pytest_cache/
 .ruff_cache/
+*.tsbuildinfo
