@@ -37,6 +37,18 @@ def pcm_to_wav(pcm: bytes, sample_rate: int = DEFAULT_SAMPLE_RATE, channels: int
     return buf.getvalue()
 
 
+def decode_audio_payload(data: bytes, default_rate: int) -> tuple[bytes, int, int]:
+    """(pcm, rate, channels). Baʼzi Gemini TTS modellari mimeType ni "audio/L16" deb koʻrsatsa ham
+    tayyor WAV (RIFF sarlavhali) qaytaradi. Uni xom PCM deb oʻrash sarlavha baytlarini ovozga
+    aylantirib, har gap boshida "chirsillash" beradi — shuning uchun sarlavha tekshiriladi."""
+    if data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        with wave.open(io.BytesIO(data), "rb") as wf:
+            if wf.getsampwidth() != 2:
+                raise ValueError(f"Kutilmagan namuna kengligi: {wf.getsampwidth()} bayt")
+            return wf.readframes(wf.getnframes()), wf.getframerate(), wf.getnchannels()
+    return data[: len(data) - len(data) % 2], default_rate, 1
+
+
 class GeminiTTSClient:
     name = "gemini"
 
@@ -131,12 +143,13 @@ class GeminiTTSClient:
             )["inlineData"]
         except (KeyError, IndexError, StopIteration) as exc:
             raise ProviderUnavailable(f"Gemini audio qaytarmadi: {str(payload)[:300]}") from exc
-        pcm = base64.b64decode(part["data"])
         rate_match = re.search(r"rate=(\d+)", part.get("mimeType", ""))
-        rate = int(rate_match.group(1)) if rate_match else DEFAULT_SAMPLE_RATE
+        pcm, rate, channels = decode_audio_payload(
+            base64.b64decode(part["data"]), int(rate_match.group(1)) if rate_match else DEFAULT_SAMPLE_RATE
+        )
         return TTSResult(
-            audio=pcm_to_wav(pcm, rate),
+            audio=pcm_to_wav(pcm, rate, channels),
             extension="wav",
             characters=len(request.text),
-            duration_seconds=len(pcm) / (2 * rate),
+            duration_seconds=len(pcm) / (2 * rate * channels),
         )

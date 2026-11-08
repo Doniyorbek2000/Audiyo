@@ -243,3 +243,34 @@ def test_circuit_breaker():
     assert cb.allow()
     cb.failure(permanent=True)
     assert not cb.allow()
+
+
+def test_gemini_wav_payload_is_not_double_wrapped():
+    """gemini-3.8-flash-tts mimeType ni audio/L16 deb koʻrsatib, RIFF sarlavhali WAV qaytaradi.
+    Sarlavha ovozga aylanmasligi kerak (aks holda har gap boshida "chirsillash" eshitiladi)."""
+    from app.services.tts.gemini import decode_audio_payload, pcm_to_wav
+
+    pcm = b"\x10\x00\xf0\xff" * 12000  # 1 soniya, 24 kHz
+    inner = pcm_to_wav(pcm, 24000)
+    out_pcm, rate, ch = decode_audio_payload(inner, 24000)
+    assert out_pcm == pcm and rate == 24000 and ch == 1
+    raw_pcm, _, _ = decode_audio_payload(pcm, 24000)
+    assert raw_pcm == pcm
+
+    def handler(request):
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [
+            {"inlineData": {"mimeType": "audio/L16;codec=pcm;rate=24000", "data": base64.b64encode(inner).decode()}}]}}]})
+
+    r = GeminiTTSClient(api_key="g", transport=httpx.MockTransport(handler)).synthesize(TTSRequest("Salom", "Kore"))
+    assert r.audio[44:] == pcm  # bitta sarlavha, keyin toza ovoz
+    assert r.duration_seconds == pytest.approx(1.0)
+
+
+def test_repair_double_wrapped_wav():
+    from app.services.tts.gemini import pcm_to_wav
+    from app.tools.repair_tts_wav import repair_bytes
+
+    pcm = b"\x01\x02" * 2400
+    broken = pcm_to_wav(pcm_to_wav(pcm, 24000), 24000)
+    assert repair_bytes(broken)[44:] == pcm
+    assert repair_bytes(pcm_to_wav(pcm, 24000)) is None  # sogʻlom fayl oʻzgarmaydi
