@@ -297,7 +297,7 @@ class TTSRouter:
             try:
                 result = client.synthesize(TTSRequest(
                     text=request.text, voice_id=voice.voice_id, emotion=request.emotion,
-                    language=request.language, speed=request.speed,
+                    language=request.language, speed=request.speed, style=request.style, role=request.role,
                 ))
                 breaker.success()
                 return result, AttemptRecord(voice.provider, retries, None, int((time.monotonic() - started) * 1000))

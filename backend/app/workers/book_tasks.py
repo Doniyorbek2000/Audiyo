@@ -14,7 +14,7 @@ import zipfile
 from collections import defaultdict
 from decimal import Decimal
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, or_, select, update
 
 from app import events, storage
 from app.config import get_settings
@@ -25,6 +25,7 @@ from app.models import (
     BookChapter,
     BookCharacter,
     BookProject,
+    BookScene,
     BookStatus,
     Gender,
     LexiconSource,
@@ -37,8 +38,9 @@ from app.models import (
 )
 from app.services import billing
 from app.services.llm.attribution import attribute, build_registry, dialogue_shares
+from app.services.llm.director import BlockIn, direct_chapter
 from app.services.llm.client import LLMError, LLMNotConfigured, get_llm
-from app.services.media import ffmpeg, mixing
+from app.services.media import ffmpeg, mixing, soundscape
 from app.services.text import lexicon as lex
 from app.services.text.normalizer import (
     expand_abbreviations,
@@ -228,7 +230,7 @@ def attribute_book(book_id: uuid.UUID) -> None:
         _assign_book_voices(s, book, list(char_rows.values()))
     set_book_status(book_id, BookStatus.ATTRIBUTED,
                     f"{len(char_rows)} ta personaj; {review_count} ta satr tekshiruv talab qiladi")
-    apply_lexicon.delay(str(book_id))
+    direct_book.delay(str(book_id))
 
 
 def _assign_book_voices(s, book: BookProject, characters: list[BookCharacter]) -> None:
@@ -253,6 +255,75 @@ def _assign_book_voices(s, book: BookProject, characters: list[BookCharacter]) -
         a = assignments[str(c.id)]
         c.voice_profile_id = uuid.UUID(a.primary.profile_id)
         c.tts_tier = TTSTier.TIER_1 if a.primary.provider is TTSProvider.ELEVENLABS else TTSTier.TIER_2
+
+
+# =============================================================== 2b. Rejissyorlik
+
+
+@celery_app.task(name="book.direct")
+@_guarded
+def direct_book(book_id: uuid.UUID) -> None:
+    """Ijro koʻrsatmalari, nomsiz spikerlar uchun rollar va muhit sahnalari (LLM boʻlmasa — oʻtkaziladi)."""
+    llm = _optional_llm()
+    if llm is None:
+        apply_lexicon.delay(str(book_id))
+        return
+    with sync_session() as s:
+        # Qayta ishga tushirishda oldingi epizodik personajlar oʻchiriladi (bloklar hikoyachiga qaytadi)
+        s.execute(delete(BookCharacter).where(BookCharacter.book_id == book_id, BookCharacter.is_minor.is_(True)))
+        s.flush()
+        chapters = [
+            (c.id, c.chapter_index, c.title,
+             [BlockIn(b.sequence_order, b.block_type.value, b.source_text,
+                      b.character.canonical_name if b.character else None) for b in c.blocks])
+            for c in s.execute(select(BookChapter).where(BookChapter.book_id == book_id)
+                               .order_by(BookChapter.chapter_index)).scalars()
+        ]
+    total = len(chapters)
+    roles: dict[str, dict] = {}  # rol (kichik harf) → {name, gender, age}
+    for n, (cid, idx, title, blocks) in enumerate(chapters):
+        direction = direct_chapter(llm, blocks, title)
+        with sync_session() as s:
+            rows = {b.sequence_order: b for b in s.execute(select(TextBlock).where(TextBlock.chapter_id == cid)).scalars()}
+            for seq, d in direction.blocks.items():
+                tb = rows.get(seq)
+                if tb is None:
+                    continue
+                tb.emotion_tag = d.emotion
+                tb.delivery = d.delivery or None
+                if d.speaker_role and tb.block_type is BlockType.DIALOGUE and tb.character_id is None:
+                    key = d.speaker_role.lower()
+                    roles.setdefault(key, {"name": d.speaker_role.strip(), "gender": d.speaker_gender,
+                                           "age": d.speaker_age, "blocks": []})["blocks"].append(tb.id)
+            s.execute(delete(BookScene).where(BookScene.chapter_id == cid))
+            for sc in direction.scenes:
+                s.add(BookScene(chapter_id=cid, start_seq=sc.start_seq, end_seq=sc.end_seq, label=sc.label,
+                                ambience_prompt=sc.ambience_prompt, intensity=sc.intensity))
+        book_stage(book_id, "DIRECTING", f"Rejissyorlik: {n + 1}/{total} bob, {len(direction.scenes)} ta sahna",
+                   interpolate(30, 34, (n + 1) / max(total, 1)))
+
+    with sync_session() as s:
+        book = s.get(BookProject, book_id)
+        existing = {c.canonical_name.lower(): c for c in s.execute(
+            select(BookCharacter).where(BookCharacter.book_id == book_id)).scalars()}
+        total_dialogue = sum(len(r["blocks"]) for r in roles.values()) or 1
+        for key, r in roles.items():
+            ch = existing.get(key)
+            if ch is None:
+                ch = BookCharacter(
+                    book_id=book_id, canonical_name=r["name"][:255], aliases=[], is_minor=True,
+                    gender=Gender(r["gender"]) if r["gender"] in Gender.__members__ else Gender.UNKNOWN,
+                    age_group=AgeGroup(r["age"]) if r["age"] in AgeGroup.__members__ else AgeGroup.ADULT,
+                    dialogue_share=Decimal(str(round(len(r["blocks"]) / total_dialogue * 0.04, 4))),
+                )
+                s.add(ch)
+                s.flush()
+                existing[key] = ch
+            s.execute(update(TextBlock).where(TextBlock.id.in_(r["blocks"]))
+                      .values(character_id=ch.id, needs_review=False))
+        _assign_book_voices(s, book, list(existing.values()))
+        book.directed = True
+    apply_lexicon.delay(str(book_id))
 
 
 # =============================================================== 3. Talaffuz leksikoni
@@ -376,6 +447,26 @@ def _block_assignments(s, book: BookProject) -> tuple[dict[str, VoiceAssignment]
     return result, keys
 
 
+def _scene_sfx(scene: BookScene, sfx, wd):
+    """Sahna fon tovushi: S3 keshidan yoki SFX provayderidan (bir xil tavsif — bitta fayl)."""
+    from pathlib import Path
+
+    key = scene.sfx_key or soundscape.cache_key(scene.ambience_prompt)
+    local = Path(wd) / "sfx" / Path(key).name
+    try:
+        return storage.download_file(key, local)
+    except Exception:  # noqa: BLE001 — keshda yoʻq
+        pass
+    local.parent.mkdir(parents=True, exist_ok=True)
+    local.write_bytes(sfx.generate(scene.ambience_prompt, soundscape.SFX_SECONDS))
+    storage.upload_file(local, key, "audio/mpeg")
+    with sync_session() as s:
+        row = s.get(BookScene, scene.id)
+        if row:
+            row.sfx_key = key
+    return local
+
+
 def estimate_book_cost(s, book: BookProject) -> tuple[Decimal, Decimal]:
     assignments, keys = _block_assignments(s, book)
     chars: dict[TTSProvider, int] = defaultdict(int)
@@ -416,8 +507,10 @@ def synthesize(book_id: uuid.UUID, chapters: list[int] | None = None) -> None:
                 tb.status = SegmentStatus.SYNTHESIZED  # oʻqiladigan soʻz yoʻq — faqat pauza
                 continue
             chars[a.primary.provider] += len(text)
+            is_character = tb.block_type is BlockType.DIALOGUE and key != NARRATOR_KEY
             items.append(SynthItem(tb.id, text, tb.emotion_tag, a, key,
-                                   _key(book_id, f"tts/{tb.id}-{uuid.uuid4().hex[:6]}")))
+                                   _key(book_id, f"tts/{tb.id}-{uuid.uuid4().hex[:6]}"),
+                                   style=tb.delivery, role="character" if is_character else "narrator"))
         _, charge = tts_cost.estimate(chars)
         held = Decimal("0")
         if charge > 0:
@@ -473,28 +566,61 @@ def stitch(book_id: uuid.UUID) -> None:
         book = s.get(BookProject, book_id)
         title, author = book.title, book.author
         # Faqat toʻliq sintez qilingan boblar birlashtiriladi (qisman sintezda qolganlari keyinroq)
-        chapters = [(c.id, c.chapter_index, c.title, [(b.tts_audio_key, b.pause_after_ms) for b in c.blocks])
+        chapters = [(c.id, c.chapter_index, c.title,
+                     [(b.tts_audio_key, b.pause_after_ms, b.sequence_order) for b in c.blocks])
                     for c in book.chapters
                     if c.blocks and all(b.status is SegmentStatus.SYNTHESIZED for b in c.blocks)]
+        soundscape_on = book.soundscape_enabled
+        scenes_by_chapter: dict[uuid.UUID, list[BookScene]] = defaultdict(list)
+        if soundscape_on:
+            for sc in s.execute(select(BookScene).where(
+                    BookScene.chapter_id.in_([c[0] for c in chapters]), BookScene.enabled.is_(True))).scalars():
+                scenes_by_chapter[sc.chapter_id].append(sc)
+    sfx = soundscape.get_sfx_provider() if soundscape_on else None
+    sfx_disabled_reason: str | None = None
     with workdir("stitch", book_id) as wd:
         chapter_wavs, marks, mp3s = [], [], []
         cursor_ms = 0
         silence_cache: dict[int, object] = {}
         for n, (cid, idx, ch_title, blocks) in enumerate(chapters):
             parts = []
-            for i, (key, pause) in enumerate(blocks):
-                if not key:
-                    continue
-                raw = storage.download_file(key, wd / f"c{idx}" / f"{i}{'.' + key.rsplit('.', 1)[-1]}")
-                parts.append(ffmpeg.to_wav(raw, wd / f"c{idx}" / f"{i}.norm.wav", channels=1))
-                if pause > 0:
+            timing: dict[int, tuple[int, int]] = {}  # sequence_order → (boshlanish, oxiri+pauza) ms
+            t_ms = 0
+            for i, (key, pause, seq) in enumerate(blocks):
+                start = t_ms
+                if key:
+                    raw = storage.download_file(key, wd / f"c{idx}" / f"{i}{'.' + key.rsplit('.', 1)[-1]}")
+                    norm = ffmpeg.to_wav(raw, wd / f"c{idx}" / f"{i}.norm.wav", channels=1)
+                    parts.append(norm)
+                    t_ms += int(round(ffmpeg.duration_seconds(norm) * 1000))
+                if pause > 0 and (key or parts):
                     if pause not in silence_cache:
                         silence_cache[pause] = ffmpeg.make_silence(wd / f"silence_{pause}.wav", pause / 1000)
                     parts.append(silence_cache[pause])
+                    t_ms += pause
+                timing[seq] = (start, t_ms)
             if not parts:
                 continue
             joined = ffmpeg.concat_wavs(parts, wd / f"chapter_{idx}.raw.wav", wd)
-            final = ffmpeg.loudnorm(joined, wd / f"chapter_{idx}.wav", integrated=mixing.BOOK_LOUDNESS_LUFS)
+            placed: list[soundscape.PlacedScene] = []
+            if sfx is not None and sfx_disabled_reason is None:
+                for sc in scenes_by_chapter.get(cid, []):
+                    if sc.start_seq not in timing or sc.end_seq not in timing:
+                        continue
+                    try:
+                        src = _scene_sfx(sc, sfx, wd)
+                    except soundscape.SFXUnavailable as exc:
+                        sfx_disabled_reason = str(exc)
+                        log.warning("Muhit tovushlari oʻchirildi: %s", exc)
+                        break
+                    placed.append(soundscape.PlacedScene(timing[sc.start_seq][0], timing[sc.end_seq][1], src,
+                                                         sc.intensity))
+            if placed:
+                bed = soundscape.build_ambience_track(placed, t_ms, wd / f"amb_{idx}.wav", wd / f"amb_{idx}")
+                final = soundscape.mix_voice_with_ambience(joined, bed, wd / f"chapter_{idx}.wav",
+                                                           loudness=mixing.BOOK_LOUDNESS_LUFS)
+            else:
+                final = ffmpeg.loudnorm(joined, wd / f"chapter_{idx}.wav", integrated=mixing.BOOK_LOUDNESS_LUFS)
             dur_ms = int(ffmpeg.duration_seconds(final) * 1000)
             label = ch_title or ("Kirish" if n == 0 else f"{idx}-qism")
             mp3 = mixing.export_mp3(final, wd / f"{idx:03d}.mp3", label, track=idx, album=title)

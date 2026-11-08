@@ -70,6 +70,12 @@ class GeminiTTSClient:
     @staticmethod
     def build_prompt(request: TTSRequest) -> str:
         style = GEMINI_EMOTION_STYLE.get(request.emotion, GEMINI_EMOTION_STYLE["neutral"])
+        if request.role == "narrator":
+            style += ", as an engaging audiobook narrator who draws the listener into the story"
+        else:
+            style += ", acting this line as the character, natural and alive"
+        if request.style:
+            style += f" ({request.style.strip().rstrip('.')})"
         if request.speed > 1.05:
             style += ", at a slightly faster pace"
         elif request.speed < 0.95:

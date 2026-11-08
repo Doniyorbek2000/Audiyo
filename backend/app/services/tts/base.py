@@ -52,6 +52,8 @@ class TTSRequest:
     emotion: str = "neutral"
     language: str = "uz"
     speed: float = 1.0
+    style: str | None = None  # rejissyor koʻrsatmasi: "tense, hushed, slightly faster"
+    role: str = "narrator"  # narrator | character — ijro uslubi
 
 
 @dataclass

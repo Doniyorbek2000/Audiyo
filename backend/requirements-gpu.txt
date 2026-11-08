@@ -3,4 +3,4 @@
 -r requirements.txt
 demucs==4.0.1
 whisperx==3.8.6
-numpy
+numpy==2.5.4

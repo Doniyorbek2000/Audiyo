@@ -28,6 +28,7 @@ celery_app.conf.update(
         "video.clone_voice": {"queue": "io"},
         "book.prepare": {"queue": "cpu"},
         "book.attribute": {"queue": "io"},
+        "book.direct": {"queue": "io"},
         "book.apply_lexicon": {"queue": "io"},
         "book.synthesize": {"queue": "io"},
         "book.stitch": {"queue": "cpu"},

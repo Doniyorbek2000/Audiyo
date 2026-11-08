@@ -17,7 +17,7 @@ export interface SegmentRowProps {
   color: string;
   selected: boolean;
   onSelect: (id: string) => void;
-  onSave: (id: string, patch: Partial<Pick<Segment, "translated_text_uz" | "speaker_id" | "emotion_tag">>) => Promise<void>;
+  onSave: (id: string, patch: Partial<Pick<Segment, "translated_text_uz" | "speaker_id" | "emotion_tag" | "delivery">>) => Promise<void>;
   onRetranslate: (id: string) => Promise<void>;
   onSeek: (t: number) => void;
 }
@@ -93,6 +93,12 @@ function SegmentRowImpl({ segment: s, speakers, color, selected, onSelect, onSav
                   className={`input resize-y text-[15px] leading-relaxed ${over ? "border-warn/70" : ""}`}
                   placeholder="Tarjima kutilmoqda…" />
 
+        <label className="sr-only" htmlFor={`dl-${s.id}`}>Ijro koʻrsatmasi</label>
+        <input id={`dl-${s.id}`} defaultValue={s.delivery ?? ""} key={s.delivery ?? ""}
+               placeholder="Ijro koʻrsatmasi, masalan: hayajonli, baqirib (inglizcha yoki oʻzbekcha)"
+               onClick={(e) => e.stopPropagation()}
+               onBlur={(e) => e.target.value.trim() !== (s.delivery ?? "") && onSave(s.id, { delivery: e.target.value.trim() })}
+               className="w-full rounded-lg border border-field-edge bg-bg px-2 py-1 text-xs text-muted focus:border-info focus:outline-none" />
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className={`tabular-nums ${over ? "font-semibold text-warn" : "text-muted"}`}>
             {syl}/{Number.isFinite(max) ? max : "?"} boʻgʻin{over ? ", vaqtga sigʻmasligi mumkin" : ""}

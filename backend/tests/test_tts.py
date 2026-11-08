@@ -79,7 +79,12 @@ def test_gemini_request_pcm_to_wav():
     cfg = seen["body"]["generationConfig"]
     assert cfg["responseModalities"] == ["AUDIO"]
     assert cfg["speechConfig"]["voiceConfig"]["prebuiltVoiceConfig"]["voiceName"] == "Kore"
-    assert seen["body"]["contents"][0]["parts"][0]["text"].startswith("Say cheerfully in Uzbek:")
+    prompt = seen["body"]["contents"][0]["parts"][0]["text"]
+    assert prompt.startswith("Say cheerfully in Uzbek, as an engaging audiobook narrator")
+    assert prompt.endswith(":\nSalom")
+    acted = GeminiTTSClient.build_prompt(TTSRequest("Qoching!", "Kore", emotion="fearful", role="character",
+                                                    style="panicked, breathless, shouting"))
+    assert "acting this line as the character" in acted and "(panicked, breathless, shouting)" in acted
 
     def quota_error(quota_id, delay="12s"):
         msg = ("You exceeded your current quota, please check your plan and billing details. "

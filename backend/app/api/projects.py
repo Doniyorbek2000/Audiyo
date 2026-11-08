@@ -198,6 +198,9 @@ async def patch_segment(
     if "emotion_tag" in data and data["emotion_tag"] and data["emotion_tag"] != seg.emotion_tag:
         seg.emotion_tag = data["emotion_tag"]
         needs_synth = True
+    if "delivery" in data and (data["delivery"] or None) != seg.delivery:
+        seg.delivery = (data["delivery"] or "").strip() or None
+        needs_synth = True
     if "speaker_id" in data and data["speaker_id"] != seg.speaker_id:
         if data["speaker_id"] is not None:
             sp = await session.get(Speaker, data["speaker_id"])

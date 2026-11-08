@@ -43,7 +43,9 @@ Hard rules:
 4. Keep character names consistent; transliterate foreign names phonetically for an Uzbek reader
    (e.g. "Washington" → "Vashington", "Harry" → "Garri") and reuse the glossary when given.
 5. Address forms: use "siz" for polite/formal, "sen" between close friends, family or when angry.
-6. Preserve the emotion; choose emotion_tag from the allowed list.
+6. Preserve the emotion; choose emotion_tag from the allowed list, and write `delivery`: a short English
+   performance note for the voice actor (max 12 words) matching the scene, e.g. "angry, shouting over noise",
+   "tender, almost whispering", "sarcastic, amused". The dub must feel acted, not read.
 7. Return exactly one item per input segment, same segment_id, same order.
 """
 
@@ -61,6 +63,7 @@ _SCHEMA: dict[str, Any] = {
                     "target_uz_text": {"type": "STRING"},
                     "target_duration_ms": {"type": "INTEGER"},
                     "emotion_tag": {"type": "STRING", "enum": EMOTIONS},
+                    "delivery": {"type": "STRING"},
                 },
                 "required": [
                     "segment_id", "speaker_id", "source_text", "target_uz_text",
@@ -106,6 +109,7 @@ class TranslatedSegment:
     source_syllables: int
     target_syllables: int
     max_syllables: int
+    delivery: str = ""
 
     @property
     def over_budget(self) -> bool:
@@ -200,6 +204,7 @@ def _to_translated(raw: dict[str, Any], src: SourceSegment, source_lang: str, at
         source_syllables=count_syllables(src.source_text, source_lang),
         target_syllables=count_syllables_uz(text),
         max_syllables=maximum,
+        delivery=" ".join(str(raw.get("delivery") or "").split()[:14]),
     )
 
 
@@ -259,6 +264,7 @@ def translate_segments(
                     candidate = _to_translated(item, by_id[sid], source_lang, atempo_max)
                     if candidate.target_syllables < results[sid].target_syllables and candidate.target_uz_text:
                         candidate.emotion_tag = results[sid].emotion_tag
+                        candidate.delivery = results[sid].delivery
                         results[sid] = candidate
 
     return TranslationResult(segments=[results[s.segment_id] for s in segments], glossary=glossary)

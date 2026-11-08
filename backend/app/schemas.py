@@ -106,6 +106,7 @@ class SegmentOut(ORM):
     original_text: str
     translated_text_uz: str | None
     emotion_tag: str
+    delivery: str | None = None
     source_syllables: int | None
     target_syllables: int | None
     max_syllables: int | None = None
@@ -142,6 +143,7 @@ class SegmentPatch(BaseModel):
     start_time: Decimal | None = Field(default=None, ge=0)
     end_time: Decimal | None = Field(default=None, gt=0)
     emotion_tag: str | None = None
+    delivery: str | None = Field(default=None, max_length=200)
 
     @field_validator("emotion_tag")
     @classmethod
@@ -192,6 +194,8 @@ class BookOut(ORM):
     narrator_voice_profile_id: uuid.UUID | None
     total_chars: int | None
     estimated_cost_usd: Decimal | None
+    soundscape_enabled: bool = True
+    directed: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -201,6 +205,7 @@ class BookPatch(BaseModel):
     author: str | None = Field(default=None, max_length=255)
     tts_mode: TTSMode | None = None
     narrator_voice_profile_id: uuid.UUID | None = None
+    soundscape_enabled: bool | None = None
 
 
 class ChapterOut(ORM):
@@ -223,6 +228,7 @@ class CharacterOut(ORM):
     dialogue_share: Decimal
     tts_tier: TTSTier
     voice_profile_id: uuid.UUID | None
+    is_minor: bool = False
     voice: VoiceOut | None = None
 
 
@@ -250,6 +256,7 @@ class BlockOut(ORM):
     source_text: str
     tts_text: str | None
     emotion_tag: str
+    delivery: str | None = None
     pause_after_ms: int
     attribution_confidence: Decimal | None
     needs_review: bool
@@ -264,6 +271,7 @@ class BlockPatch(BaseModel):
     character_id: uuid.UUID | None = None
     clear_character: bool = False  # hikoyachiga qaytarish
     emotion_tag: str | None = None
+    delivery: str | None = Field(default=None, max_length=200)
     pause_after_ms: int | None = Field(default=None, ge=0, le=10000)
     needs_review: bool | None = None
 
@@ -271,6 +279,27 @@ class BlockPatch(BaseModel):
 class BlockPage(BaseModel):
     items: list[BlockOut]
     total: int
+
+
+class SceneOut(ORM):
+    id: uuid.UUID
+    chapter_id: uuid.UUID
+    chapter_index: int = 0
+    start_seq: int
+    end_seq: int
+    label: str
+    ambience_prompt: str
+    intensity: str
+    enabled: bool
+    has_audio: bool = False
+    preview_url: str | None = None
+
+
+class ScenePatch(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=120)
+    ambience_prompt: str | None = Field(default=None, min_length=3, max_length=400)
+    intensity: str | None = Field(default=None, pattern="^(low|medium)$")
+    enabled: bool | None = None
 
 
 class LexiconOut(ORM):

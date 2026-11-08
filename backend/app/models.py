@@ -224,6 +224,7 @@ class DialogueSegment(Base):
     original_text: Mapped[str] = mapped_column(Text)
     translated_text_uz: Mapped[str | None] = mapped_column(Text)
     emotion_tag: Mapped[str] = mapped_column(String(30), default="neutral")
+    delivery: Mapped[str | None] = mapped_column(Text)
     source_syllables: Mapped[int | None] = mapped_column(Integer)
     target_syllables: Mapped[int | None] = mapped_column(Integer)
     words: Mapped[list | None] = mapped_column(JSONB)
@@ -266,6 +267,8 @@ class BookProject(Base):
     estimated_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
     output_m4b_key: Mapped[str | None] = mapped_column(Text)
     output_zip_key: Mapped[str | None] = mapped_column(Text)
+    soundscape_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    directed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -308,6 +311,7 @@ class BookCharacter(Base):
     voice_profile_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("voice_profiles.id", ondelete="SET NULL")
     )
+    is_minor: Mapped[bool] = mapped_column(Boolean, default=False)
 
     book: Mapped[BookProject] = relationship(back_populates="characters")
     voice_profile: Mapped[VoiceProfile | None] = relationship(lazy="joined")
@@ -326,6 +330,7 @@ class TextBlock(Base):
     tts_text: Mapped[str | None] = mapped_column(Text)
     emotion_tag: Mapped[str] = mapped_column(String(30), default="neutral")
     pause_after_ms: Mapped[int] = mapped_column(Integer, default=500)
+    delivery: Mapped[str | None] = mapped_column(Text)
     attribution_confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
     needs_review: Mapped[bool] = mapped_column(Boolean, default=False)
     tts_audio_key: Mapped[str | None] = mapped_column(Text)
@@ -336,6 +341,21 @@ class TextBlock(Base):
 
     chapter: Mapped[BookChapter] = relationship(back_populates="blocks")
     character: Mapped[BookCharacter | None] = relationship()
+
+
+class BookScene(Base):
+    """Muhit tovushi qoʻyiladigan sahna: bob ichidagi bloklar oraligʻi."""
+
+    __tablename__ = "book_scenes"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    chapter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("book_chapters.id", ondelete="CASCADE"))
+    start_seq: Mapped[int] = mapped_column(Integer)
+    end_seq: Mapped[int] = mapped_column(Integer)
+    label: Mapped[str] = mapped_column(String(120))
+    ambience_prompt: Mapped[str] = mapped_column(Text)
+    intensity: Mapped[str] = mapped_column(String(10), default="low")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    sfx_key: Mapped[str | None] = mapped_column(Text)
 
 
 class PronunciationEntry(Base):

@@ -439,3 +439,81 @@ async def test_events_pubsub_roundtrip():
     event = json.loads(raw)
     assert event["type"] == "progress" and event["progress"] == 42.5 and event["stage"] == "TTS"
     await gen.aclose()
+
+
+class FakeBookLLM:
+    """Kitob konveyeri LLM chaqiruvlari: personajlar, atributsiya, leksikon, rejissyor."""
+
+    def generate_json(self, system, prompt, schema, temperature=0.3):
+        props = schema.get("properties", {})
+        if "scenes" in props:  # rejissyor
+            items = json.loads(prompt[prompt.index("Blocks:\n") + len("Blocks:\n"):])
+            blocks = [{"seq": b["seq"], "emotion": "tender" if b["type"] == "DIALOGUE" else "neutral",
+                       "delivery": "soft, intimate" if b["type"] == "DIALOGUE" else "warm storytelling",
+                       "speaker_role": "Hamshira" if b["type"] == "DIALOGUE" and not b["speaker"] else "",
+                       "speaker_gender": "FEMALE", "speaker_age": "ADULT"} for b in items]
+            seqs = [b["seq"] for b in items]
+            scenes = [{"start_seq": seqs[0], "end_seq": seqs[1], "label": "Kasalxona",
+                       "ambience_prompt": "quiet hospital ward ambience", "intensity": "low"}] if len(seqs) > 1 else []
+            return {"blocks": blocks, "scenes": scenes}
+        if "characters" in props:
+            return {"characters": []}
+        if "attributions" in props:
+            return {"attributions": []}
+        return {"items": []}
+
+
+class FakeSFX:
+    def __init__(self):
+        self.prompts = []
+
+    def generate(self, prompt, seconds):
+        self.prompts.append(prompt)
+        return subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i",
+                               f"anoisesrc=color=brown:duration={seconds}:amplitude=0.3", "-f", "mp3", "-"],
+                              capture_output=True, check=True).stdout
+
+
+async def test_book_direction_and_soundscape(client, env, monkeypatch):
+    import app.workers.book_tasks as bt
+
+    sfx = FakeSFX()
+    monkeypatch.setattr(bt, "get_llm", lambda: FakeBookLLM())
+    monkeypatch.setattr(bt.soundscape, "get_sfx_provider", lambda: sfx)
+    text = ("1-bob. Kasalxonada\n\nMen koʻzimni ochdim. Atrofda hamshiralar yurardi.\n\n"
+            "— Qalaysiz? Nimani eslaysiz?\n\nMen javob bera olmadim. Xona jim edi.\n")
+    r = await client.post("/books/upload", files={"file": ("k.txt", text.encode(), "text/plain")},
+                          data={"title": "Sahna", "tts_mode": "BUDGET"})
+    bid = r.json()["id"]
+    book = (await client.get(f"/books/{bid}")).json()
+    assert book["status"] == "LEXICON_APPLIED" and book["directed"], book["error_message"]
+
+    blocks = (await client.get(f"/books/{bid}/blocks")).json()["items"]
+    dialogue = next(b for b in blocks if b["block_type"] == "DIALOGUE")
+    assert dialogue["delivery"] == "soft, intimate" and dialogue["emotion_tag"] == "tender"
+    chars = (await client.get(f"/books/{bid}/characters")).json()
+    nurse = next(c for c in chars if c["canonical_name"] == "Hamshira")
+    assert nurse["is_minor"] and nurse["gender"] == "FEMALE" and dialogue["character_id"] == nurse["id"]
+    scenes = (await client.get(f"/books/{bid}/scenes")).json()
+    assert len(scenes) == 1 and scenes[0]["label"] == "Kasalxona" and not scenes[0]["has_audio"]
+
+    gemini = env["clients"][next(k for k in env["clients"] if k.value == "gemini")]
+    before = len(gemini.requests)
+    assert (await client.post(f"/books/{bid}/synthesize")).status_code == 202
+    book = (await client.get(f"/books/{bid}")).json()
+    assert book["status"] == "READY_FOR_EXPORT", book["error_message"]
+    reqs = gemini.requests[before:]
+    assert any(q.style == "soft, intimate" and q.role == "character" for q in reqs)
+    assert any(q.role == "narrator" and q.style == "warm storytelling" for q in reqs)
+    assert sfx.prompts == ["quiet hospital ward ambience"]
+    scenes = (await client.get(f"/books/{bid}/scenes")).json()
+    assert scenes[0]["has_audio"] and scenes[0]["preview_url"]
+
+    # Sahnani oʻchirib, qayta yigʻish: TTS qayta chaqirilmaydi, SFX ham (kesh)
+    sid = scenes[0]["id"]
+    r = await client.patch(f"/books/{bid}/scenes/{sid}", json={"enabled": False})
+    assert r.status_code == 200 and r.json()["enabled"] is False
+    n_tts = len(gemini.requests)
+    assert (await client.post(f"/books/{bid}/restitch")).status_code == 202
+    assert (await client.get(f"/books/{bid}")).json()["status"] == "READY_FOR_EXPORT"
+    assert len(gemini.requests) == n_tts and len(sfx.prompts) == 1

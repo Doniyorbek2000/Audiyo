@@ -244,6 +244,7 @@ def translate(project_id: uuid.UUID, only_segment_ids: list[str] | None = None, 
                 t = by_id[str(seg.id)]
                 seg.translated_text_uz = t.target_uz_text
                 seg.emotion_tag = t.emotion_tag
+                seg.delivery = t.delivery or None
                 seg.source_syllables = t.source_syllables
                 seg.target_syllables = t.target_syllables
                 seg.status = SegmentStatus.TRANSLATED
@@ -337,7 +338,8 @@ def dispatch_tts(project_id: uuid.UUID, shorten_round: int = 0) -> None:
             assignment = effective_assignment(assignments[key], available)
             chars_by_provider[assignment.primary.provider] += len(text)
             items.append(SynthItem(seg.id, text, seg.emotion_tag, assignment, key,
-                                   _key(project_id, f"tts/{seg.id}-{uuid.uuid4().hex[:6]}")))
+                                   _key(project_id, f"tts/{seg.id}-{uuid.uuid4().hex[:6]}"),
+                                   style=seg.delivery, role="character"))
         api_estimate, charge_estimate = tts_cost.estimate(chars_by_provider)
         project.estimated_cost_usd = charge_estimate
         held = Decimal("0")

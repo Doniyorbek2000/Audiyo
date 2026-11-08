@@ -32,7 +32,8 @@ export interface Speaker {
 
 export interface Segment {
   id: string; speaker_id: string | null; sequence_order: number; start_time: string; end_time: string;
-  original_text: string; translated_text_uz: string | null; emotion_tag: string; source_syllables: number | null;
+  original_text: string; translated_text_uz: string | null; emotion_tag: string; delivery: string | null;
+  source_syllables: number | null;
   target_syllables: number | null; max_syllables: number | null; tts_duration_ms: number | null;
   tempo_ratio: string | null; status: SegmentStatus; manual_override_flags: boolean; audio_url: string | null;
 }
@@ -52,7 +53,13 @@ export interface ProjectExport {
 export interface Book {
   id: string; title: string; author: string | null; source_format: string; status: BookStatus; tts_mode: TTSMode;
   progress: string; error_message: string | null; narrator_voice_profile_id: string | null; total_chars: number | null;
-  estimated_cost_usd: string | null; created_at: string; updated_at: string;
+  estimated_cost_usd: string | null; soundscape_enabled: boolean; directed: boolean;
+  created_at: string; updated_at: string;
+}
+
+export interface Scene {
+  id: string; chapter_id: string; chapter_index: number; start_seq: number; end_seq: number; label: string;
+  ambience_prompt: string; intensity: "low" | "medium"; enabled: boolean; has_audio: boolean; preview_url: string | null;
 }
 
 export interface Chapter {
@@ -62,12 +69,13 @@ export interface Chapter {
 
 export interface Character {
   id: string; canonical_name: string; aliases: string[]; gender: Gender; age_group: AgeGroup; dialogue_share: string;
-  tts_tier: Tier; voice_profile_id: string | null; voice: Voice | null;
+  tts_tier: Tier; voice_profile_id: string | null; is_minor: boolean; voice: Voice | null;
 }
 
 export interface Block {
   id: string; chapter_id: string; sequence_order: number; block_type: "NARRATION" | "DIALOGUE" | "HEADING";
-  character_id: string | null; source_text: string; tts_text: string | null; emotion_tag: string; pause_after_ms: number;
+  character_id: string | null; source_text: string; tts_text: string | null; emotion_tag: string;
+  delivery: string | null; pause_after_ms: number;
   attribution_confidence: string | null; needs_review: boolean; duration_ms: number | null; status: SegmentStatus;
   audio_url: string | null;
 }

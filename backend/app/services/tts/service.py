@@ -80,6 +80,8 @@ class SynthItem:
     assignment: VoiceAssignment
     consistency_key: str
     storage_key_prefix: str  # masalan "projects/<id>/tts/<segment_id>"
+    style: str | None = None
+    role: str = "narrator"
 
 
 @dataclass
@@ -112,7 +114,8 @@ def synthesize_many(
 
     def work(item: SynthItem) -> SynthOutcome:
         try:
-            routed = router.synthesize(TTSRequest(text=item.text, voice_id="", emotion=item.emotion),
+            routed = router.synthesize(TTSRequest(text=item.text, voice_id="", emotion=item.emotion,
+                                                  style=item.style, role=item.role),
                                        item.assignment, item.consistency_key)
         except TTSFailed as exc:
             return SynthOutcome(item, None, None, None, str(exc))

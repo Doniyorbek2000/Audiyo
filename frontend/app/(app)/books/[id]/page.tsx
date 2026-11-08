@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  AlertCircle, ArrowLeft, BookOpen, Check, Download, Languages, Merge, Pause, Play, Plus, RotateCcw, Sparkles, Trash2, Users,
+  AlertCircle, ArrowLeft, BookOpen, Check, Download, Languages, Merge, Pause, Play, Plus, RefreshCw, RotateCcw, Sparkles,
+  Trash2, Users, Waves,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -14,10 +15,10 @@ import { AGE_LABEL, EMOTION_LABEL, formatDuration, GENDER_LABEL, MODE_LABEL, usd
 import { useApi, usePipelineEvents } from "@/lib/hooks";
 import {
   EMOTIONS, type Block, type Book, type BookExport, type Chapter, type Character, type Estimate, type LexiconEntry,
-  type PipelineEvent, type Voice,
+  type PipelineEvent, type Scene, type Voice,
 } from "@/lib/types";
 
-type Tab = "text" | "cast" | "lexicon" | "synth";
+type Tab = "text" | "cast" | "scenes" | "lexicon" | "synth";
 const EDITABLE = new Set(["ATTRIBUTED", "LEXICON_APPLIED", "READY_FOR_EXPORT", "FAILED"]);
 
 // ====================================================================== bloklar
@@ -78,6 +79,15 @@ function BlockRow({ block, characters, editable, onPatch }: {
         <textarea id={`txt-${block.id}`} value={text} disabled={!editable} onChange={(e) => setText(e.target.value)}
                   rows={Math.min(8, Math.max(2, Math.ceil(text.length / 110)))}
                   className={`input resize-y leading-relaxed ${isHeading ? "font-bold" : ""} ${block.block_type === "DIALOGUE" ? "border-l-4 border-l-info" : ""}`} />
+        {!isHeading && (
+          <>
+            <label className="sr-only" htmlFor={`dl-${block.id}`}>Ijro koʻrsatmasi</label>
+            <input id={`dl-${block.id}`} key={block.delivery ?? ""} defaultValue={block.delivery ?? ""} disabled={!editable}
+                   placeholder="Ijro koʻrsatmasi, masalan: sokin, oʻychan; yoki hayajonli, tezroq"
+                   onBlur={(e) => e.target.value.trim() !== (block.delivery ?? "") && onPatch(block.id, { delivery: e.target.value.trim() })}
+                   className="w-full rounded-lg border border-field-edge bg-bg px-2 py-1 text-xs text-muted focus:border-info focus:outline-none" />
+          </>
+        )}
         {block.tts_text && block.tts_text !== block.source_text && (
           <p className="text-xs text-muted"><span className="font-semibold">TTS uchun:</span> {block.tts_text}</p>
         )}
@@ -221,7 +231,7 @@ function CastTab({ bookId, characters, voices, editable, reload }: {
                   </p>
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${c.tts_tier === "TIER_1" ? "bg-accent/15 text-accent" : "bg-info/15 text-info"}`}>
-                  {c.tts_tier === "TIER_1" ? "Asosiy" : "Ikkilamchi"}
+                  {c.is_minor ? "Epizodik" : c.tts_tier === "TIER_1" ? "Asosiy" : "Ikkilamchi"}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -287,6 +297,86 @@ function CastTab({ bookId, characters, voices, editable, reload }: {
           <button type="submit" className="btn-primary w-full">Qoʻshish</button>
         </form>
       </Modal>
+    </div>
+  );
+}
+
+// ====================================================================== muhit tovushlari
+function ScenesTab({ book, editable, onChanged }: { book: Book; editable: boolean; onChanged: () => Promise<void> }) {
+  const toast = useToast();
+  const scenes = useApi<Scene[]>(`/books/${book.id}/scenes`);
+  const [busy, setBusy] = useState(false);
+
+  async function patch(id: string, body: Record<string, unknown>) {
+    try {
+      const upd = await api<Scene>(`/books/${book.id}/scenes/${id}`, { method: "PATCH", json: body });
+      scenes.setData((cur) => cur && cur.map((x) => (x.id === id ? upd : x)));
+    } catch (e) { toast((e as Error).message, "danger"); }
+  }
+
+  async function restitch() {
+    setBusy(true);
+    try {
+      const r = await api<{ message: string }>(`/books/${book.id}/restitch`, { method: "POST" });
+      toast(r.message, "info");
+      await onChanged();
+    } catch (e) { toast((e as Error).message, "danger"); } finally { setBusy(false); }
+  }
+
+  if (scenes.loading && !scenes.data) return <Spinner />;
+  const list = scenes.data ?? [];
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <p className="max-w-2xl text-sm text-muted">
+          Rejissyor matn tinglovchini aniq joyga olib kirgan sahnalarni belgilaydi. Fon tovushi gap paytida pasayadi,
+          pauzalarda esa eshitiladi.{book.soundscape_enabled ? "" : " Hozir bu kitob uchun oʻchirilgan (Sintez boʻlimida yoqiladi)."}
+        </p>
+        <button type="button" className="btn-secondary shrink-0" disabled={busy || book.status !== "READY_FOR_EXPORT"}
+                onClick={restitch} title="TTS qayta chaqirilmaydi, faqat audio qayta yigʻiladi">
+          {busy ? <Spinner /> : <RefreshCw aria-hidden className="size-4" />} Audioni qayta yigʻish
+        </button>
+      </div>
+      {list.length ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {list.map((sc) => (
+            <div key={sc.id} className={`card space-y-3 p-4 ${sc.enabled ? "" : "opacity-60"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="truncate font-semibold">{sc.label}</h3>
+                  <p className="text-xs text-muted">{sc.chapter_index}-boʻlim, bloklar {sc.start_seq} dan {sc.end_seq} gacha</p>
+                </div>
+                <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
+                  <input type="checkbox" className="size-4 accent-accent" checked={sc.enabled} disabled={!editable}
+                         onChange={(e) => patch(sc.id, { enabled: e.target.checked })} />
+                  Yoqilgan
+                </label>
+              </div>
+              <div>
+                <label className="label" htmlFor={`amb-${sc.id}`}>Tovush tavsifi (inglizcha)</label>
+                <textarea id={`amb-${sc.id}`} rows={2} key={sc.ambience_prompt} defaultValue={sc.ambience_prompt} disabled={!editable}
+                          onBlur={(e) => e.target.value.trim() !== sc.ambience_prompt && patch(sc.id, { ambience_prompt: e.target.value.trim() })}
+                          className="input resize-y text-sm" />
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="text-sm text-muted" htmlFor={`int-${sc.id}`}>Balandlik</label>
+                <select id={`int-${sc.id}`} className="input w-auto cursor-pointer py-1.5" value={sc.intensity} disabled={!editable}
+                        onChange={(e) => patch(sc.id, { intensity: e.target.value })}>
+                  <option value="low">Past (sezilar-sezilmas)</option>
+                  <option value="medium">Oʻrta</option>
+                </select>
+                {sc.preview_url
+                  ? <audio controls preload="none" src={sc.preview_url} className="h-9 w-full sm:w-64" aria-label={`${sc.label} fon tovushi`} />
+                  : <span className="text-xs text-muted">Tovush sintezda yaratiladi</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState icon={<Waves className="size-7" />} title="Sahnalar yoʻq">
+          {book.directed ? "Bu kitobda fon tovushi talab qiladigan sahna topilmadi." : "Rejissyorlik bosqichi LLM sozlangandan keyin bajariladi."}
+        </EmptyState>
+      )}
     </div>
   );
 }
@@ -414,6 +504,12 @@ function SynthTab({ book, voices, onChanged }: { book: Book; voices: Voice[]; on
               {Object.entries(MODE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </Field>
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 text-sm">
+            <input type="checkbox" className="mt-0.5 size-4 accent-accent" checked={book.soundscape_enabled}
+                   disabled={!editable} onChange={(e) => patchBook({ soundscape_enabled: e.target.checked })} />
+            <span><span className="font-semibold">Muhit tovushlari</span>
+              <span className="block text-muted">Sahnalarda fon tovushi (olomon, koʻcha, yomgʻir) nutq ostida ohista yangraydi.</span></span>
+          </label>
         </div>
         <div className="card space-y-4 p-5">
           <h3 className="font-semibold">Narx</h3>
@@ -502,6 +598,7 @@ export default function BookPage() {
   const TABS: { key: Tab; label: string; icon: typeof BookOpen }[] = [
     { key: "text", label: "Matn va bloklar", icon: BookOpen },
     { key: "cast", label: `Personajlar (${characters.data?.length ?? 0})`, icon: Users },
+    { key: "scenes", label: "Muhit tovushlari", icon: Waves },
     { key: "lexicon", label: "Talaffuz", icon: Languages },
     { key: "synth", label: "Sintez va eksport", icon: Sparkles },
   ];
@@ -575,6 +672,7 @@ export default function BookPage() {
         ? <TextTab bookId={id} chapters={chapters.data} characters={characters.data ?? []} editable={editable} />
         : <EmptyState icon={<BookOpen className="size-7" />} title="Matn tahlil qilinmoqda">Boblar tayyor boʻlgach shu yerda koʻrinadi.</EmptyState>)}
       {tab === "cast" && <CastTab bookId={id} characters={characters.data ?? []} voices={voices.data ?? []} editable={editable} reload={reloadAll} />}
+      {tab === "scenes" && <ScenesTab book={b} editable={editable} onChanged={reloadAll} />}
       {tab === "lexicon" && <LexiconTab bookId={id} editable={editable} />}
       {tab === "synth" && <SynthTab book={b} voices={voices.data ?? []} onChanged={reloadAll} />}
     </div>

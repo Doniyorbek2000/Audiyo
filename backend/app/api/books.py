@@ -21,6 +21,7 @@ from app.models import (
     BookChapter,
     BookCharacter,
     BookProject,
+    BookScene,
     BookStatus,
     LexiconSource,
     PronunciationEntry,
@@ -47,6 +48,8 @@ from app.schemas import (
     LexiconIn,
     LexiconOut,
     LexiconPatch,
+    SceneOut,
+    ScenePatch,
     VoiceOut,
 )
 from app.services.text.parsers import SUPPORTED_FORMATS, UnsupportedFormat, detect_format
@@ -236,6 +239,8 @@ async def patch_block(book: BookDep, block_id: uuid.UUID, body: BlockPatch, sess
         tb.block_type, resynth = data["block_type"], True
     if data.get("emotion_tag") and data["emotion_tag"] != tb.emotion_tag:
         tb.emotion_tag, resynth = data["emotion_tag"], True
+    if "delivery" in data and ((data["delivery"] or "").strip() or None) != tb.delivery:
+        tb.delivery, resynth = (data["delivery"] or "").strip() or None, True
     if "pause_after_ms" in data and data["pause_after_ms"] is not None:
         tb.pause_after_ms = data["pause_after_ms"]  # faqat stitching ga taʼsir qiladi
     if "needs_review" in data and data["needs_review"] is not None:
@@ -341,6 +346,54 @@ async def patch_character(book: BookDep, character_id: uuid.UUID, body: Characte
     await session.commit()
     await session.refresh(c)
     return await _character_out(session, c)
+
+
+# ------------------------------------------------------------------ muhit sahnalari
+
+
+def _scene_out(sc: BookScene, chapter_index: int) -> SceneOut:
+    o = SceneOut.model_validate(sc)
+    o.chapter_index = chapter_index
+    o.has_audio = bool(sc.sfx_key)
+    o.preview_url = storage.presigned_url(sc.sfx_key)
+    return o
+
+
+@router.get("/{book_id}/scenes", response_model=list[SceneOut])
+async def scenes(book: BookDep, session: SessionDep) -> list[SceneOut]:
+    rows = (await session.execute(
+        select(BookScene, BookChapter.chapter_index).join(BookChapter, BookChapter.id == BookScene.chapter_id)
+        .where(BookChapter.book_id == book.id).order_by(BookChapter.chapter_index, BookScene.start_seq))).all()
+    return [_scene_out(sc, idx) for sc, idx in rows]
+
+
+@router.patch("/{book_id}/scenes/{scene_id}", response_model=SceneOut)
+async def patch_scene(book: BookDep, scene_id: uuid.UUID, body: ScenePatch, session: SessionDep) -> SceneOut:
+    _ensure_editable(book)
+    sc = await session.get(BookScene, scene_id)
+    chapter = await session.get(BookChapter, sc.chapter_id) if sc else None
+    if sc is None or chapter is None or chapter.book_id != book.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Sahna topilmadi")
+    data = body.model_dump(exclude_unset=True)
+    if data.get("ambience_prompt") and data["ambience_prompt"].strip() != sc.ambience_prompt:
+        sc.ambience_prompt, sc.sfx_key = data["ambience_prompt"].strip(), None  # yangi tovush yaratiladi
+    for field in ("label", "intensity", "enabled"):
+        if field in data and data[field] is not None:
+            setattr(sc, field, data[field])
+    await session.commit()
+    await session.refresh(sc)
+    return _scene_out(sc, chapter.chapter_index)
+
+
+@router.post("/{book_id}/restitch", response_model=ActionOut, status_code=202)
+async def restitch(book: BookDep, session: SessionDep) -> ActionOut:
+    """Sahna yoki pauza oʻzgargandan soʻng audioni qayta yigʻish (TTS qayta chaqirilmaydi)."""
+    if book.status not in (BookStatus.READY_FOR_EXPORT, BookStatus.FAILED):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Avval sintezni yakunlang")
+    book.status, book.error_message = BookStatus.TTS_DISPATCHED, None
+    await session.commit()
+    _tasks().stitch.delay(str(book.id))
+    return ActionOut(status="queued", message="Audiokitob qayta yigʻilmoqda")
 
 
 # ------------------------------------------------------------------ leksikon
