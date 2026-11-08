@@ -34,10 +34,14 @@ class Settings(BaseSettings):
     elevenlabs_base_url: str = "https://api.elevenlabs.io"
     gemini_api_key: str | None = None
     gemini_base_url: str = "https://generativelanguage.googleapis.com"
-    gemini_tts_model: str = "gemini-2.5-flash-preview-tts"
-    gemini_text_model: str = "gemini-2.5-flash"
+    gemini_tts_model: str = "gemini-3.8-flash-tts"
+    gemini_tts_fallback_models: list[str] = ["gemini-2.5-flash-preview-tts"]
+    gemini_text_model: str = "gemini-3.8-flash"
+    gemini_text_fallback_models: list[str] = ["gemini-3.5-flash-lite"]
     tts_timeout_seconds: float = 60.0
     tts_max_retries: int = 3
+    tts_parallelism: int = 4
+    rate_limit_max_wait_seconds: float = 90.0
 
     # Narxlar (USD) — provayder tarifiga qarab yangilang
     elevenlabs_usd_per_1k_chars: float = 0.30

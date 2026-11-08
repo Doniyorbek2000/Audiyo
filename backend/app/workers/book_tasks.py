@@ -392,7 +392,8 @@ def estimate_book_cost(s, book: BookProject) -> tuple[Decimal, Decimal]:
 
 @celery_app.task(name="book.synthesize")
 @_guarded
-def synthesize(book_id: uuid.UUID) -> None:
+def synthesize(book_id: uuid.UUID, chapters: list[int] | None = None) -> None:
+    """chapters — faqat shu bob indekslari (sinov yoki bosqichma-bosqich sintez uchun)."""
     router = build_router()
     available = set(router.clients)
     with sync_session() as s:
@@ -403,6 +404,8 @@ def synthesize(book_id: uuid.UUID) -> None:
         q = (select(TextBlock).join(BookChapter)
              .where(BookChapter.book_id == book_id, TextBlock.status != SegmentStatus.SYNTHESIZED)
              .order_by(BookChapter.chapter_index, TextBlock.sequence_order))
+        if chapters:
+            q = q.where(BookChapter.chapter_index.in_(chapters))
         items: list[SynthItem] = []
         chars: dict[TTSProvider, int] = defaultdict(int)
         for tb in s.execute(q).scalars():
@@ -410,6 +413,7 @@ def synthesize(book_id: uuid.UUID) -> None:
             a = effective_assignment(assignments.get(key, assignments[NARRATOR_KEY]), available)
             text = tb.tts_text or tb.source_text
             if not re.search(r"\w", text):
+                tb.status = SegmentStatus.SYNTHESIZED  # oʻqiladigan soʻz yoʻq — faqat pauza
                 continue
             chars[a.primary.provider] += len(text)
             items.append(SynthItem(tb.id, text, tb.emotion_tag, a, key,
@@ -468,8 +472,10 @@ def stitch(book_id: uuid.UUID) -> None:
     with sync_session() as s:
         book = s.get(BookProject, book_id)
         title, author = book.title, book.author
+        # Faqat toʻliq sintez qilingan boblar birlashtiriladi (qisman sintezda qolganlari keyinroq)
         chapters = [(c.id, c.chapter_index, c.title, [(b.tts_audio_key, b.pause_after_ms) for b in c.blocks])
-                    for c in book.chapters]
+                    for c in book.chapters
+                    if c.blocks and all(b.status is SegmentStatus.SYNTHESIZED for b in c.blocks)]
     with workdir("stitch", book_id) as wd:
         chapter_wavs, marks, mp3s = [], [], []
         cursor_ms = 0

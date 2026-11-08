@@ -14,9 +14,13 @@ class ProviderTimeout(TTSError):
 
 
 class RateLimited(TTSError):
-    """Vaqtinchalik cheklov (429 concurrency) — qayta urinish mumkin."""
+    """Vaqtinchalik cheklov (429) — qayta urinish mumkin; retry_after — server tavsiya qilgan kutish."""
 
     retryable = True
+
+    def __init__(self, message: str, retry_after: float | None = None):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 class ProviderUnavailable(TTSError):

@@ -9,6 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from app.services.text.cleanup import clean_ocr_text, looks_hard_wrapped
 from app.services.text.segmenter import CHAPTER_HEADING, RawChapter, split_into_chapters
 
 SUPPORTED_FORMATS = {"epub", "fb2", "docx", "pdf", "txt"}
@@ -28,7 +29,9 @@ def detect_format(filename: str) -> str:
 def parse_book(data: bytes, fmt: str) -> list[RawChapter]:
     fmt = fmt.lower()
     if fmt == "txt":
-        chapters = split_into_chapters(_decode(data))
+        text = _decode(data)
+        # Skaner/PDF dan olingan matn (qattiq uzilgan satrlar) maxsus tozalanadi
+        chapters = clean_ocr_text(text) if looks_hard_wrapped(text) else split_into_chapters(text)
     elif fmt == "fb2":
         chapters = parse_fb2(data)
     elif fmt == "epub":
@@ -238,6 +241,10 @@ def parse_pdf(data: bytes) -> list[RawChapter]:
     reader = PdfReader(BytesIO(data))
     pages = [(page.extract_text() or "") for page in reader.pages]
     text = "\n".join(pages)
+    if looks_hard_wrapped(text):
+        chapters = clean_ocr_text(text)
+        if chapters:
+            return chapters
     # Satr oxiridagi defis bilan boʻlingan soʻzlarni birlashtirish
     text = re.sub(r"(\w)-\n(\w)", r"\1\2", text)
     # Sahifa raqamlarini olib tashlash

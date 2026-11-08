@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
 import re
 import wave
 
@@ -23,6 +24,7 @@ from app.services.tts.base import (
 )
 
 DEFAULT_SAMPLE_RATE = 24000
+log = logging.getLogger(__name__)
 
 
 def pcm_to_wav(pcm: bytes, sample_rate: int = DEFAULT_SAMPLE_RATE, channels: int = 1) -> bytes:
@@ -48,7 +50,8 @@ class GeminiTTSClient:
     ) -> None:
         s = get_settings()
         self.api_key = api_key or s.gemini_api_key
-        self.model = model or s.gemini_tts_model
+        self.models = [model] if model else [s.gemini_tts_model, *s.gemini_tts_fallback_models]
+        self.model = self.models[0]
         self.base_url = (base_url or s.gemini_base_url).rstrip("/")
         self._http = httpx.Client(timeout=timeout or s.tts_timeout_seconds, transport=transport)
 
@@ -72,10 +75,22 @@ class GeminiTTSClient:
         status = err.get("status", "")
         message = err.get("message") or resp.text[:300]
         if resp.status_code == 429 or status == "RESOURCE_EXHAUSTED":
-            # Kunlik kvota vs daqiqalik limit
-            if re.search(r"quota|billing|per day|exceeded your current quota", message, re.I):
-                raise QuotaExceeded(f"Gemini kvotasi tugadi: {message}")
-            raise RateLimited(f"Gemini: {message}")
+            retry_after = None
+            quota_ids: list[str] = []
+            for d in err.get("details", []) or []:
+                m = re.match(r"^(\d+(?:\.\d+)?)s$", str(d.get("retryDelay", "")))
+                if m:
+                    retry_after = float(m.group(1))
+                quota_ids += [str(v.get("quotaId", "")) for v in d.get("violations", []) or []]
+            # Kunlik kvota (quotaId ...PerDay...) yoki billing — ish oxirigacha provayder oʻchiriladi;
+            # daqiqalik limit (PerMinute) — server aytgan vaqt kutib qayta urinish
+            # Diqqat: Gemini HAR QANDAY 429 xabariga "check your plan and billing details" qoʻshadi —
+            # shuning uchun faqat quotaId ga qaraladi
+            daily = any("perday" in q.lower() for q in quota_ids)
+            log.warning("Gemini 429: quotaId=%s retryDelay=%s", quota_ids, retry_after)
+            if daily:
+                raise QuotaExceeded(f"Gemini kunlik kvotasi tugadi ({', '.join(quota_ids)}): {message[:200]}")
+            raise RateLimited(f"Gemini: {message}", retry_after=retry_after or 20.0)
         if resp.status_code in (401, 403):
             raise AuthError(f"Gemini avtorizatsiya xatosi: {message}")
         if resp.status_code >= 500:
@@ -92,16 +107,22 @@ class GeminiTTSClient:
                 "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": request.voice_id}}},
             },
         }
-        try:
-            resp = self._http.post(
-                f"{self.base_url}/v1beta/models/{self.model}:generateContent",
-                json=body,
-                headers={"x-goog-api-key": self.api_key},
-            )
-        except httpx.TimeoutException as exc:
-            raise ProviderTimeout(f"Gemini vaqt tugadi: {exc}") from exc
-        except httpx.TransportError as exc:
-            raise ProviderUnavailable(f"Gemini tarmoq xatosi: {exc}") from exc
+        resp = None
+        for i, model in enumerate(self.models):
+            try:
+                resp = self._http.post(
+                    f"{self.base_url}/v1beta/models/{model}:generateContent",
+                    json=body,
+                    headers={"x-goog-api-key": self.api_key},
+                )
+            except httpx.TimeoutException as exc:
+                raise ProviderTimeout(f"Gemini vaqt tugadi: {exc}") from exc
+            except httpx.TransportError as exc:
+                raise ProviderUnavailable(f"Gemini tarmoq xatosi: {exc}") from exc
+            # Model yopilgan (404) yoki band (503) — keyingi TTS modeliga oʻtish
+            if resp.status_code in (404, 503) and i + 1 < len(self.models):
+                continue
+            break
         self._raise_for(resp)
         payload = resp.json()
         try:

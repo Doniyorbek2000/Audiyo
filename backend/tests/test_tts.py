@@ -81,14 +81,40 @@ def test_gemini_request_pcm_to_wav():
     assert cfg["speechConfig"]["voiceConfig"]["prebuiltVoiceConfig"]["voiceName"] == "Kore"
     assert seen["body"]["contents"][0]["parts"][0]["text"].startswith("Say cheerfully in Uzbek:")
 
-    quota = GeminiTTSClient(api_key="g", transport=httpx.MockTransport(lambda r: httpx.Response(
-        429, json={"error": {"status": "RESOURCE_EXHAUSTED", "message": "You exceeded your current quota"}})))
+    def quota_error(quota_id, delay="12s"):
+        msg = ("You exceeded your current quota, please check your plan and billing details. "
+               "For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits.")
+        return {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "message": msg,
+                          "details": [
+                              {"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                               "violations": [{"quotaMetric": "generativelanguage.googleapis.com/generate_requests",
+                                               "quotaId": quota_id}]},
+                              {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": delay}]}}
+
+    daily = GeminiTTSClient(api_key="g", transport=httpx.MockTransport(
+        lambda r: httpx.Response(429, json=quota_error("GenerateRequestsPerDayPerProjectPerModel"))))
     with pytest.raises(QuotaExceeded):
-        quota.synthesize(TTSRequest("a", "Kore"))
-    rate = GeminiTTSClient(api_key="g", transport=httpx.MockTransport(lambda r: httpx.Response(
-        429, json={"error": {"status": "RESOURCE_EXHAUSTED", "message": "Rate limit per minute"}})))
-    with pytest.raises(RateLimited):
-        rate.synthesize(TTSRequest("a", "Kore"))
+        daily.synthesize(TTSRequest("a", "Kore"))
+    minute = GeminiTTSClient(api_key="g", transport=httpx.MockTransport(
+        lambda r: httpx.Response(429, json=quota_error("GenerateRequestsPerMinutePerProjectPerModel"))))
+    with pytest.raises(RateLimited) as exc:
+        minute.synthesize(TTSRequest("a", "Kore"))
+    assert exc.value.retry_after == 12.0
+
+    # Asosiy TTS modeli band (503) — zaxira modelga oʻtadi
+    seen_models = []
+
+    def busy_then_ok(request):
+        seen_models.append(request.url.path.split("/")[-1])
+        if len(seen_models) == 1:
+            return httpx.Response(503, json={"error": {"status": "UNAVAILABLE", "message": "high demand"}})
+        return handler(request)
+
+    fb = GeminiTTSClient(api_key="g", transport=httpx.MockTransport(busy_then_ok),
+                         model=None)
+    fb.models = ["primary-tts", "fallback-tts"]
+    assert fb.synthesize(TTSRequest("Salom", "Kore")).extension == "wav"
+    assert seen_models == ["primary-tts:generateContent", "fallback-tts:generateContent"]
 
 
 # ------------------------------------------------------------------ xarajat
@@ -186,6 +212,15 @@ def test_router_quota_fallback_is_sticky():
     assert r1.provider is TTSProvider.GEMINI and r1.fallback_from is TTSProvider.ELEVENLABS
     r2 = router.synthesize(TTSRequest("Ikki", ""), _assignment(), "spk")
     assert r2.provider is TTSProvider.GEMINI and el.calls == 1  # ElevenLabs boshqa chaqirilmaydi
+
+
+def test_router_waits_on_rate_limit_without_opening_breaker():
+    gm = FakeClient("gemini", [RateLimited("rpm", retry_after=30.0), RateLimited("rpm", retry_after=500.0), "ok"])
+    sleeps = []
+    router = TTSRouter({TTSProvider.GEMINI: gm}, sleep=sleeps.append, max_wait_s=90)
+    r = router.synthesize(TTSRequest("Salom", ""), VoiceAssignment(CATALOG[3], None), "spk")
+    assert r.provider is TTSProvider.GEMINI and sleeps == [30.0, 90]
+    assert router.breakers[TTSProvider.GEMINI].allow()
 
 
 def test_router_all_failed():

@@ -62,7 +62,7 @@ def build_router() -> TTSRouter:
         clients[TTSProvider.GEMINI] = GeminiTTSClient()
     if not clients:
         raise RuntimeError("Hech bir TTS provayderi sozlanmagan (ELEVENLABS_API_KEY yoki GEMINI_API_KEY)")
-    return TTSRouter(clients, max_retries=s.tts_max_retries)
+    return TTSRouter(clients, max_retries=s.tts_max_retries, max_wait_s=s.rate_limit_max_wait_seconds)
 
 
 def effective_assignment(assignment: VoiceAssignment, available: set[TTSProvider]) -> VoiceAssignment:
@@ -105,7 +105,7 @@ def synthesize_many(
     *,
     workdir,
     on_done: Callable[[SynthOutcome], None],
-    parallelism: int = PARALLELISM,
+    parallelism: int | None = None,
 ) -> list[SynthOutcome]:
     """Parallel sintez; har natija tayyor boʻlishi bilan on_done (asosiy oqimda) chaqiriladi."""
     workdir.mkdir(parents=True, exist_ok=True)
@@ -123,7 +123,7 @@ def synthesize_many(
         return SynthOutcome(item, routed, key, _duration_ms(routed, local), None)
 
     outcomes: list[SynthOutcome] = []
-    with ThreadPoolExecutor(max_workers=parallelism) as pool:
+    with ThreadPoolExecutor(max_workers=parallelism or get_settings().tts_parallelism) as pool:
         futures = [pool.submit(work, it) for it in items]
         for fut in as_completed(futures):
             try:

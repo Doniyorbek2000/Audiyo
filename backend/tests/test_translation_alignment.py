@@ -56,7 +56,7 @@ def test_gemini_llm_json_and_retry():
     def handler(request):
         calls["n"] += 1
         if calls["n"] == 1:
-            return httpx.Response(503, json={"error": {"message": "overloaded"}})
+            raise httpx.ReadError("Connection reset by peer", request=request)
         return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": '{"ok": true}'}]}}]})
 
     llm = GeminiLLM(api_key="x", transport=httpx.MockTransport(handler), max_retries=2)

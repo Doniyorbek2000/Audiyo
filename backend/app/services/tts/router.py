@@ -22,6 +22,7 @@ from app.services.tts.base import (
     BadRequest,
     ProviderNotConfigured,
     QuotaExceeded,
+    RateLimited,
     TTSError,
     TTSProviderClient,
     TTSRequest,
@@ -267,7 +268,9 @@ class TTSRouter:
         backoff_base_s: float = 1.0,
         sleep: Callable[[float], None] = time.sleep,
         breakers: dict[TTSProvider, CircuitBreaker] | None = None,
+        max_wait_s: float = 90.0,
     ) -> None:
+        self.max_wait_s = max_wait_s
         self.clients = clients
         self.max_retries = max_retries
         self.backoff_base_s = backoff_base_s
@@ -305,6 +308,14 @@ class TTSRouter:
             except BadRequest as exc:
                 last_error = str(exc)
                 break
+            except RateLimited as exc:
+                # Daqiqalik limit provayder nosozligi emas: breaker ochilmaydi, server aytgan vaqt kutiladi
+                last_error = str(exc)
+                if retries >= self.max_retries + 3:
+                    break
+                wait = exc.retry_after if exc.retry_after else self.backoff_base_s * (2**retries)
+                self.sleep(min(wait, self.max_wait_s))
+                retries += 1
             except TTSError as exc:
                 last_error = str(exc)
                 breaker.failure()

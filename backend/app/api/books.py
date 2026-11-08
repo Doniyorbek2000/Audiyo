@@ -411,8 +411,22 @@ async def delete_lexicon(book: BookDep, entry_id: uuid.UUID, session: SessionDep
 # ------------------------------------------------------------------ narx, sintez, eksport
 
 
+def _parse_chapters(chapters: str | None) -> list[int] | None:
+    if not chapters:
+        return None
+    try:
+        out = sorted({int(x) for x in chapters.replace(" ", "").split(",") if x})
+    except ValueError:
+        raise HTTPException(422, "chapters: vergul bilan ajratilgan bob raqamlari, masalan 1,2") from None
+    return out or None
+
+
 @router.get("/{book_id}/estimate", response_model=EstimateOut)
-async def estimate(book: BookDep, user: UserDep, session: SessionDep) -> EstimateOut:
+async def estimate(
+    book: BookDep, user: UserDep, session: SessionDep,
+    chapters: Annotated[str | None, Query(description="Faqat shu boblar, masalan 1,2")] = None,
+) -> EstimateOut:
+    only = _parse_chapters(chapters)
     if book.status in (BookStatus.UPLOADED, BookStatus.PARSED, BookStatus.NORMALIZED, BookStatus.SEGMENTED):
         raise HTTPException(status.HTTP_409_CONFLICT, "Kitob hali tahlil qilinmoqda")
 
@@ -424,6 +438,8 @@ async def estimate(book: BookDep, user: UserDep, session: SessionDep) -> Estimat
         chars: dict[TTSProvider, int] = defaultdict(int)
         q = select(TextBlock).join(BookChapter).where(BookChapter.book_id == book.id,
                                                        TextBlock.status != SegmentStatus.SYNTHESIZED)
+        if only:
+            q = q.where(BookChapter.chapter_index.in_(only))
         for tb in s.execute(q).scalars():
             key = keys.get(tb.character_id, t.NARRATOR_KEY) if tb.block_type is BlockType.DIALOGUE else t.NARRATOR_KEY
             a = assignments.get(key, assignments[t.NARRATOR_KEY])
@@ -444,14 +460,20 @@ async def estimate(book: BookDep, user: UserDep, session: SessionDep) -> Estimat
 
 
 @router.post("/{book_id}/synthesize", response_model=ActionOut, status_code=202)
-async def synthesize(book: BookDep, user: UserDep, session: SessionDep) -> ActionOut:
+async def synthesize(
+    book: BookDep, user: UserDep, session: SessionDep,
+    chapters: Annotated[str | None, Query(description="Faqat shu boblar, masalan 1,2")] = None,
+) -> ActionOut:
     if book.status not in (BookStatus.LEXICON_APPLIED, BookStatus.READY_FOR_EXPORT, BookStatus.FAILED):
         raise HTTPException(status.HTTP_409_CONFLICT, "Sintezni hozir boshlab boʻlmaydi")
-    est = await estimate(book, user, session)
+    est = await estimate(book, user, session, chapters)
     if not est.sufficient:
         raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED,
                             f"Kredit yetarli emas: kerak ${est.charge_usd:.2f}, balans ${est.balance_usd:.2f}")
-    _tasks().synthesize.delay(str(book.id))
+    if book.status is BookStatus.FAILED:
+        book.status, book.error_message = BookStatus.LEXICON_APPLIED, None
+        await session.commit()
+    _tasks().synthesize.delay(str(book.id), chapters=_parse_chapters(chapters))
     return ActionOut(status="queued", message=f"Sintez boshlandi (taxminan ${est.charge_usd:.2f})")
 
 
@@ -466,15 +488,22 @@ async def retry(book: BookDep, session: SessionDep) -> ActionOut:
                                    .where(BookCharacter.book_id == book.id))
     pending = await session.scalar(select(func.count()).select_from(TextBlock).join(BookChapter).where(
         BookChapter.book_id == book.id, TextBlock.status != SegmentStatus.SYNTHESIZED))
+    has_tts_text = await session.scalar(select(func.count()).select_from(TextBlock).join(BookChapter)
+                                        .where(BookChapter.book_id == book.id, TextBlock.tts_text.is_not(None)))
+    # Holat xato oldidagi bosqichga qaytariladi, shunda UI va SSE jarayonni toʻgʻri koʻrsatadi
     if not n_chapters:
-        t.prepare.delay(str(book.id))
-    elif not n_chars and not await session.scalar(select(func.count()).select_from(TextBlock).join(BookChapter)
-                                                  .where(BookChapter.book_id == book.id, TextBlock.tts_text.is_not(None))):
-        t.attribute_book.delay(str(book.id))
+        task, resume = t.prepare, BookStatus.UPLOADED
+    elif not n_chars and not has_tts_text:
+        task, resume = t.attribute_book, BookStatus.SEGMENTED
+    elif not has_tts_text:
+        task, resume = t.apply_lexicon, BookStatus.ATTRIBUTED
     elif pending:
-        t.synthesize.delay(str(book.id))
+        task, resume = t.synthesize, BookStatus.LEXICON_APPLIED
     else:
-        t.stitch.delay(str(book.id))
+        task, resume = t.stitch, BookStatus.TTS_DISPATCHED
+    book.status, book.error_message = resume, None
+    await session.commit()
+    task.delay(str(book.id))
     return ActionOut(status="queued", message="Qayta ishga tushirildi")
 
 
