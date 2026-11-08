@@ -107,3 +107,7 @@ CREATE TABLE transactions (
   - Segmentlarni hisoblash, tranzaksiyalar va yakuniy eksport.
 
 > Eslatma: asl matn shu joyda uzilgan edi (oxirgi boʻlim toʻliq emas).
+
+---
+
+Qoʻshimcha modul: [Kitob va uzun matnlarni qayta ishlash](BOOK_TTS_MODULE.md)
