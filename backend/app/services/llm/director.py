@@ -166,6 +166,9 @@ def canonical_role(role: str) -> str | None:
         return None
     if r.lower() in NARRATOR_ROLES:
         return None
+    # Atoqli ot ("Laslo Polgar") — registr saqlanadi; oddiy rol ("hamshira") — bosh harf bilan
+    if any(c.isupper() for c in r[1:]) and not r.isupper():
+        return r
     return r[:1].upper() + r[1:].lower()
 
 

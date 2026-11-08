@@ -127,6 +127,7 @@ def test_roles_are_canonical_and_author_is_narrator():
     assert canonical_role("O‘quvchi") == canonical_role("o'quvchi") == canonical_role("OʻQUVCHI") == "Oʻquvchi"
     assert canonical_role("Muallif") is None and canonical_role(" men ") is None
     assert canonical_role("") is None
+    assert canonical_role("Laslo Polgar") == "Laslo Polgar" and canonical_role("neyrobiolog olim") == "Neyrobiolog olim"
 
 
 def test_director_retries_window_once():
