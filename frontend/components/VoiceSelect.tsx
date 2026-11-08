@@ -19,7 +19,7 @@ export function VoiceSelect({ id, voices, value, onChange, disabled }: {
         <optgroup key={g} label={g}>
           {list.map((v) => (
             <option key={v.id} value={v.id}>
-              {v.name} · {GENDER_LABEL[v.gender]} · {AGE_LABEL[v.age_group]}
+              {v.name} ({GENDER_LABEL[v.gender].toLowerCase()}, {AGE_LABEL[v.age_group].toLowerCase()})
             </option>
           ))}
         </optgroup>

@@ -44,7 +44,7 @@ function BlockRow({ block, characters, editable, onPatch }: {
         <select id={`who-${block.id}`} disabled={!editable || isHeading} value={speakerValue}
                 onChange={(e) => onPatch(block.id, e.target.value === "__narrator__"
                   ? { clear_character: true, block_type: "NARRATION" } : { character_id: e.target.value })}
-                className="w-full cursor-pointer rounded-lg border border-line bg-bg px-2 py-1 text-xs font-semibold">
+                className="w-full cursor-pointer rounded-lg border border-field-edge bg-bg px-2 py-1 text-xs font-semibold">
           <option value="__narrator__">{isHeading ? "Sarlavha (hikoyachi)" : "Hikoyachi"}</option>
           {block.block_type === "DIALOGUE" && !block.character_id && <option value="">Nomaʼlum spiker</option>}
           {characters.map((c) => <option key={c.id} value={c.id}>{c.canonical_name}</option>)}
@@ -52,7 +52,7 @@ function BlockRow({ block, characters, editable, onPatch }: {
         <label className="sr-only" htmlFor={`emo-${block.id}`}>Emotsiya</label>
         <select id={`emo-${block.id}`} disabled={!editable} value={block.emotion_tag}
                 onChange={(e) => onPatch(block.id, { emotion_tag: e.target.value })}
-                className="w-full cursor-pointer rounded-lg border border-line bg-bg px-2 py-1 text-xs">
+                className="w-full cursor-pointer rounded-lg border border-field-edge bg-bg px-2 py-1 text-xs">
           {EMOTIONS.map((em) => <option key={em} value={em}>{EMOTION_LABEL[em]}</option>)}
         </select>
         <div className="flex items-center gap-1 text-xs text-muted">
@@ -60,7 +60,7 @@ function BlockRow({ block, characters, editable, onPatch }: {
           <input id={`pause-${block.id}`} type="number" min={0} max={10000} step={50} disabled={!editable}
                  defaultValue={block.pause_after_ms}
                  onBlur={(e) => Number(e.target.value) !== block.pause_after_ms && onPatch(block.id, { pause_after_ms: Number(e.target.value) })}
-                 className="w-20 rounded-lg border border-line bg-bg px-2 py-1 tabular-nums" /> ms
+                 className="w-20 rounded-lg border border-field-edge bg-bg px-2 py-1 tabular-nums" /> ms
         </div>
         <StatusBadge status={block.status} />
       </div>
@@ -82,8 +82,8 @@ function BlockRow({ block, characters, editable, onPatch }: {
           <p className="text-xs text-muted"><span className="font-semibold">TTS uchun:</span> {block.tts_text}</p>
         )}
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-          <span className={text.length > 2000 ? "text-warn" : ""}>{text.length}/2000{text.length > 2000 ? " — saqlanganda boʻlinadi" : ""}</span>
-          {block.duration_ms ? <span>· {formatDuration(block.duration_ms)}</span> : null}
+          <span className={text.length > 2000 ? "text-warn" : ""}>{text.length}/2000{text.length > 2000 ? ", saqlanganda boʻlinadi" : ""}</span>
+          {block.duration_ms ? <span>{formatDuration(block.duration_ms)}</span> : null}
           <div className="ml-auto flex gap-1.5">
             {block.audio_url && (
               <button type="button" className="btn-ghost min-h-9 px-2.5 text-xs" onClick={() => {
@@ -148,7 +148,7 @@ function TextTab({ bookId, chapters, characters, editable }: {
                     chapter === c.chapter_index ? "bg-surface-2" : "hover:bg-elevated"}`}>
             <span className="line-clamp-1 font-medium">{c.title ?? (c.chapter_index === 1 ? "Kirish" : `${c.chapter_index}-qism`)}</span>
             <span className="text-xs text-muted">
-              {c.block_count} blok{c.synthesized_count ? ` · ${c.synthesized_count} sintez` : ""}{c.review_count ? ` · ${c.review_count} tekshiruv` : ""}
+              {c.block_count} blok{c.synthesized_count ? `, ${c.synthesized_count} sintez` : ""}{c.review_count ? `, ${c.review_count} tekshiruv` : ""}
             </span>
           </button>
         ))}
@@ -165,7 +165,7 @@ function TextTab({ bookId, chapters, characters, editable }: {
             {(blocks.data?.total ?? 0) > limit && (
               <div className="flex items-center justify-between border-t border-line px-4 py-2 text-sm">
                 <button type="button" className="btn-ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Oldingi</button>
-                <span className="text-muted">{page * limit + 1}–{Math.min((page + 1) * limit, blocks.data!.total)} / {blocks.data!.total}</span>
+                <span className="text-muted">{page * limit + 1} dan {Math.min((page + 1) * limit, blocks.data!.total)} / {blocks.data!.total}</span>
                 <button type="button" className="btn-ghost" disabled={(page + 1) * limit >= blocks.data!.total} onClick={() => setPage((p) => p + 1)}>Keyingi</button>
               </div>
             )}
@@ -203,7 +203,7 @@ function CastTab({ bookId, characters, voices, editable, reload }: {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted">Har personaj butun kitob davomida bir xil ovozda gapiradi. Dialog ulushi ≥ 5% boʻlganlar — asosiy (1-daraja).</p>
+        <p className="text-sm text-muted">Har personaj butun kitob davomida bir xil ovozda gapiradi. Dialog ulushi 5% va undan koʻp boʻlganlar asosiy (1-daraja).</p>
         <button type="button" className="btn-secondary shrink-0" disabled={!editable} onClick={() => setAdding(true)}>
           <Plus aria-hidden className="size-4" /> Personaj
         </button>
@@ -217,7 +217,7 @@ function CastTab({ bookId, characters, voices, editable, reload }: {
                   <h3 className="truncate font-semibold">{c.canonical_name}</h3>
                   <p className="text-xs text-muted">
                     Dialog ulushi {(Number(c.dialogue_share) * 100).toFixed(1)}%
-                    {c.aliases.length ? ` · ${c.aliases.join(", ")}` : ""}
+                    {c.aliases.length ? `. Taxalluslar: ${c.aliases.join(", ")}` : ""}
                   </p>
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${c.tts_tier === "TIER_1" ? "bg-accent/15 text-accent" : "bg-info/15 text-info"}`}>
@@ -245,7 +245,7 @@ function CastTab({ bookId, characters, voices, editable, reload }: {
                 <VoiceSelect id={`v-${c.id}`} voices={voices} value={c.voice_profile_id} disabled={!editable}
                              onChange={(v) => patch(c.id, { voice_profile_id: v })} />
               </div>
-              <button type="button" className="btn-ghost min-h-9 w-full text-xs" disabled={!editable || characters.length < 2}
+              <button type="button" className="btn-ghost min-h-9 w-full whitespace-nowrap text-xs" disabled={!editable || characters.length < 2}
                       onClick={() => setMerge(c)}>
                 <Merge aria-hidden className="size-3.5" /> Boshqa personaj bilan birlashtirish
               </button>
@@ -327,7 +327,7 @@ function LexiconTab({ bookId, editable }: { bookId: string; editable: boolean })
         </div>
         <div className="max-h-[60vh] overflow-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-surface text-left text-xs uppercase tracking-wide text-muted">
+            <thead className="sticky top-0 bg-surface text-left text-sm text-muted">
               <tr><th className="px-4 py-2">Atama</th><th className="px-4 py-2">Talaffuz</th><th className="px-4 py-2">Manba</th><th className="px-4 py-2 text-right">Amallar</th></tr>
             </thead>
             <tbody>
@@ -338,7 +338,7 @@ function LexiconTab({ bookId, editable }: { bookId: string; editable: boolean })
                     {x.book_id && editable ? (
                       <input aria-label={`${x.term} talaffuzi`} defaultValue={x.phonetic_uz}
                              onBlur={(e) => e.target.value !== x.phonetic_uz && run(() => api(`/books/${bookId}/lexicon/${x.id}`, { method: "PATCH", json: { phonetic_uz: e.target.value } }))}
-                             className="w-full rounded-lg border border-transparent bg-transparent px-2 py-1 hover:border-line focus:border-info focus:outline-none" />
+                             className="w-full rounded-lg border border-transparent bg-transparent px-2 py-1 hover:border-field-edge focus:border-info focus:outline-none" />
                     ) : <span className="px-2">{x.phonetic_uz}</span>}
                   </td>
                   <td className="px-4 py-2 text-xs">
@@ -424,7 +424,7 @@ function SynthTab({ book, voices, onChanged }: { book: Book; voices: Voice[]; on
                 <Stat label="Taxminiy narx" value={usd(est.data.charge_usd)} sub={`Balans: ${usd(est.data.balance_usd)}`} />
               </div>
               <p className="text-xs text-muted">
-                {Object.entries(est.data.chars_by_provider).map(([p, n]) => `${p === "elevenlabs" ? "ElevenLabs" : "Gemini"}: ${n.toLocaleString("uz")} belgi`).join(" · ") || "Hammasi sintez qilingan"}
+                {Object.entries(est.data.chars_by_provider).map(([p, n]) => `${p === "elevenlabs" ? "ElevenLabs" : "Gemini"}: ${n.toLocaleString("uz")} belgi`).join(", ") || "Hammasi sintez qilingan"}
               </p>
               {!est.data.sufficient && (
                 <p role="alert" className="text-sm text-danger">Kredit yetarli emas. <Link href="/billing" className="underline">Balansni toʻldiring</Link>.</p>
@@ -518,8 +518,9 @@ export default function BookPage() {
             <StatusBadge status={b.status} />
           </div>
           <p className="mt-1 text-sm text-muted">
-            {b.author ?? "Muallif koʻrsatilmagan"} · {b.source_format.toUpperCase()} · {b.total_chars?.toLocaleString("uz") ?? "—"} belgi
-            {b.estimated_cost_usd ? ` · ~${usd(b.estimated_cost_usd)}` : ""}
+            {b.author ?? "Muallif koʻrsatilmagan"}, {b.source_format.toUpperCase()}
+            {b.total_chars ? `, ${b.total_chars.toLocaleString("uz")} belgi` : ""}
+            {b.estimated_cost_usd ? `. Taxminiy narx ${usd(b.estimated_cost_usd)}` : ""}
           </p>
         </div>
         <div className="flex gap-2">

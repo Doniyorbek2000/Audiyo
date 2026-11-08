@@ -6,7 +6,7 @@ import { StatusBadge, Spinner } from "@/components/ui";
 import { EMOTION_LABEL, formatTime } from "@/lib/format";
 import { EMOTIONS, type Segment, type Speaker } from "@/lib/types";
 
-/** Oʻzbekcha boʻgʻin: har unli (a, e, i, o, u, oʻ) — bitta boʻgʻin. Backend bilan bir xil qoida. */
+/** Oʻzbekcha boʻgʻin: har unli (a, e, i, o, u, oʻ) bitta boʻgʻin. Backend bilan bir xil qoida. */
 export function countUzSyllables(text: string): number {
   return (text.match(/[aeiouAEIOU]/g) ?? []).length;
 }
@@ -64,7 +64,7 @@ function SegmentRowImpl({ segment: s, speakers, color, selected, onSelect, onSav
                 className="cursor-pointer font-mono text-xs text-info hover:underline">
           {formatTime(Number(s.start_time))}
         </button>
-        <span className="text-xs text-muted">{dur.toFixed(2)} s{s.tempo_ratio ? ` · ${Number(s.tempo_ratio).toFixed(2)}×` : ""}</span>
+        <span className="text-xs text-muted">{dur.toFixed(2)} s{s.tempo_ratio ? `, tezlik ${Number(s.tempo_ratio).toFixed(2)}×` : ""}</span>
         <StatusBadge status={s.status} />
         {s.manual_override_flags && <span className="text-[11px] font-semibold text-warn">Qoʻlda tahrirlangan</span>}
       </div>
@@ -75,13 +75,13 @@ function SegmentRowImpl({ segment: s, speakers, color, selected, onSelect, onSav
           <label className="sr-only" htmlFor={`sp-${s.id}`}>Spiker</label>
           <select id={`sp-${s.id}`} value={s.speaker_id ?? ""} onClick={(e) => e.stopPropagation()}
                   onChange={(e) => onSave(s.id, { speaker_id: e.target.value || null })}
-                  className="cursor-pointer rounded-lg border border-line bg-bg px-2 py-1 text-xs font-semibold">
+                  className="cursor-pointer rounded-lg border border-field-edge bg-bg px-2 py-1 text-xs font-semibold">
             {speakers.map((sp) => <option key={sp.id} value={sp.id}>{sp.display_name ?? sp.speaker_tag}</option>)}
           </select>
           <label className="sr-only" htmlFor={`em-${s.id}`}>Emotsiya</label>
           <select id={`em-${s.id}`} value={s.emotion_tag} onClick={(e) => e.stopPropagation()}
                   onChange={(e) => onSave(s.id, { emotion_tag: e.target.value })}
-                  className="cursor-pointer rounded-lg border border-line bg-bg px-2 py-1 text-xs">
+                  className="cursor-pointer rounded-lg border border-field-edge bg-bg px-2 py-1 text-xs">
             {EMOTIONS.map((em) => <option key={em} value={em}>{EMOTION_LABEL[em]}</option>)}
           </select>
           <p className="min-w-0 flex-1 truncate text-sm text-muted" title={s.original_text}>{s.original_text}</p>
@@ -95,7 +95,7 @@ function SegmentRowImpl({ segment: s, speakers, color, selected, onSelect, onSav
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className={`tabular-nums ${over ? "font-semibold text-warn" : "text-muted"}`}>
-            {syl}/{Number.isFinite(max) ? max : "—"} boʻgʻin{over ? " — vaqtga sigʻmasligi mumkin" : ""}
+            {syl}/{Number.isFinite(max) ? max : "?"} boʻgʻin{over ? ", vaqtga sigʻmasligi mumkin" : ""}
           </span>
           <div className="ml-auto flex gap-1.5">
             <button type="button" className="btn-ghost min-h-9 px-2.5 text-xs" disabled={!s.audio_url}

@@ -46,8 +46,8 @@ export default function BillingPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Joriy balans" value={usd(user?.credit_balance_usd)} />
-        <Stat label="30 kunlik sarf" value={u ? usd(u.total_charge_usd) : "—"} sub={u ? `API narxi: ${usd(u.total_api_cost_usd, 4)}` : undefined} />
-        <Stat label="TTS soʻrovlar" value={u ? u.rows.reduce((s, r) => s + r.jobs, 0) : "—"}
+        <Stat label="30 kunlik sarf" value={u ? usd(u.total_charge_usd) : "…"} sub={u ? `API narxi: ${usd(u.total_api_cost_usd, 4)}` : undefined} />
+        <Stat label="TTS soʻrovlar" value={u ? u.rows.reduce((s, r) => s + r.jobs, 0) : "…"}
               sub={u ? `${u.rows.reduce((s, r) => s + r.fallbacks, 0)} ta zaxira provayderga oʻtdi` : undefined} />
       </div>
 
@@ -57,7 +57,7 @@ export default function BillingPage() {
           {usage.loading && !u ? <div className="p-5"><Spinner /></div> : u?.rows.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-wide text-muted">
+                <thead className="text-left text-sm text-muted">
                   <tr><th className="px-5 py-2">Provayder</th><th className="px-5 py-2 text-right">Soʻrov</th><th className="px-5 py-2 text-right">Belgi</th>
                     <th className="px-5 py-2 text-right">Audio</th><th className="px-5 py-2 text-right">Kechikish</th><th className="px-5 py-2 text-right">Narx</th></tr>
                 </thead>
@@ -93,7 +93,7 @@ export default function BillingPage() {
         {txs.loading && !txs.data ? <div className="p-5"><Spinner /></div> : txs.data?.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-wide text-muted">
+              <thead className="text-left text-sm text-muted">
                 <tr><th className="px-5 py-2">Sana</th><th className="px-5 py-2">Turi</th><th className="px-5 py-2">Izoh</th>
                   <th className="px-5 py-2 text-right">Summa</th><th className="px-5 py-2 text-right">Balans</th></tr>
               </thead>

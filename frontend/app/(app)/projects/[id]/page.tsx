@@ -10,7 +10,7 @@ import { SpeakerPanel } from "@/components/timeline/SpeakerPanel";
 import { EmptyState, Modal, ProgressBar, Spinner, StatusBadge, useToast } from "@/components/ui";
 import { useUser } from "@/components/UserContext";
 import { api } from "@/lib/api";
-import { MODE_LABEL, SPEAKER_COLORS, usd } from "@/lib/format";
+import { MODE_LABEL, NO_SPEAKER_COLOR, SPEAKER_COLORS, usd } from "@/lib/format";
 import { useApi, usePipelineEvents } from "@/lib/hooks";
 import type { PipelineEvent, ProjectExport, Segment, Timeline, Voice } from "@/lib/types";
 
@@ -136,13 +136,12 @@ export default function ProjectPage() {
             <h1 className="truncate text-2xl font-bold">{p.title}</h1>
             <StatusBadge status={p.status} />
             <span className="text-xs text-muted" title={connected ? "Real vaqt ulanishi faol" : "Ulanmoqda…"}>
-              <span aria-hidden className={`mr-1 inline-block size-2 rounded-full ${connected ? "bg-ok" : "bg-muted"}`} />
-              {connected ? "Jonli" : "Oflayn"}
+              {connected ? "Jonli yangilanish" : "Ulanmoqda…"}
             </span>
           </div>
           <p className="mt-1 text-sm text-muted">
-            {p.source_language.toUpperCase()} → UZ · {MODE_LABEL[p.tts_mode]}
-            {p.estimated_cost_usd ? ` · Narx: ${usd(p.estimated_cost_usd, 4)}` : ""}
+            {p.source_language.toUpperCase()} dan oʻzbekchaga. {MODE_LABEL[p.tts_mode]}.
+            {p.estimated_cost_usd ? ` Narx: ${usd(p.estimated_cost_usd, 4)}.` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -178,7 +177,7 @@ export default function ProjectPage() {
           </div>
           <ProgressBar value={progress} />
           <p className="text-xs text-muted">
-            {live.message ?? "Navbatda…"}{live.spent !== undefined ? ` · Sarf: ${usd(live.spent, 4)}` : ""}
+            {live.message ?? "Navbatda…"}{live.spent !== undefined ? `. Sarf: ${usd(live.spent, 4)}` : ""}
           </p>
         </div>
       )}
@@ -199,7 +198,7 @@ export default function ProjectPage() {
         </div>
         <div className="card mx-auto w-full max-w-2xl overflow-hidden bg-black xl:max-w-none">
           {t.video_url ? (
-            <video ref={videoRef} src={t.video_url} muted playsInline className="aspect-video w-full" preload="metadata">
+            <video ref={videoRef} src={t.video_url} poster={t.poster_url ?? undefined} muted playsInline className="aspect-video w-full" preload="metadata">
               <track kind="subtitles" />
             </video>
           ) : <div className="aspect-video" />}
@@ -214,7 +213,7 @@ export default function ProjectPage() {
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3" role="tablist">
           {(["segments", "speakers"] as const).map((k) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-                    className={`btn min-h-9 ${tab === k ? "bg-surface-2 text-fg" : "text-muted hover:text-fg"}`}>
+                    className={`btn min-h-9 whitespace-nowrap ${tab === k ? "bg-surface-2 text-fg" : "text-muted hover:text-fg"}`}>
               {k === "segments" ? <><FileText aria-hidden className="size-4" /> Ssenariy ({t.segments.length})</>
                 : <><Users aria-hidden className="size-4" /> Spikerlar ({t.speakers.length})</>}
             </button>
@@ -232,7 +231,7 @@ export default function ProjectPage() {
             <div className="max-h-[70vh] overflow-y-auto">
               {segments.map((s) => (
                 <SegmentRow key={s.id} segment={s} speakers={t.speakers}
-                            color={s.speaker_id ? speakerColor[s.speaker_id] : "#64748b"}
+                            color={s.speaker_id ? speakerColor[s.speaker_id] : NO_SPEAKER_COLOR}
                             selected={selected === s.id} onSelect={setSelected} onSave={saveSegment}
                             onRetranslate={retranslate}
                             onSeek={(time) => setSeek({ t: time, nonce: Date.now() })} />
@@ -247,7 +246,7 @@ export default function ProjectPage() {
                             try {
                               await api(`/projects/${id}/speakers/${spId}`, { method: "PATCH", json: patch });
                               await tl.reload();
-                              if ("voice_profile_id" in patch) toast("Ovoz almashtirildi — «Qayta render» tugmasini bosing", "info");
+                              if ("voice_profile_id" in patch) toast("Ovoz almashtirildi. Qoʻllash uchun «Qayta render» tugmasini bosing", "info");
                             } catch (e) { toast((e as Error).message, "danger"); }
                           }}
                           onClone={async (spId) => {

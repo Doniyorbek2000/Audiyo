@@ -41,7 +41,7 @@ export interface Timeline {
   project: Project; duration: number | null;
   stems: { original: string | null; vocals: string | null; bgm: string | null; dubbed_dialogue: string | null; dubbed_mix: string | null };
   peaks: { duration?: number; original?: number[]; vocals?: number[]; bgm?: number[]; dubbed?: number[] } | null;
-  speakers: Speaker[]; segments: Segment[]; pending_changes: number; video_url: string | null;
+  speakers: Speaker[]; segments: Segment[]; pending_changes: number; video_url: string | null; poster_url: string | null;
 }
 
 export interface ProjectExport {

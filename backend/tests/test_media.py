@@ -57,6 +57,10 @@ def test_timeline_mix_mux_and_peaks(tmp_path):
     assert kinds.count("audio") == 2 and "subtitle" in kinds and "video" in kinds
     assert streams[1]["tags"]["language"] == "uzb"
 
+    poster = ffmpeg.poster_frame(video, tmp_path / "poster.jpg")
+    assert poster and poster.stat().st_size > 0
+    assert ffmpeg.poster_frame(mix, tmp_path / "none.jpg") is None
+
     peaks = ffmpeg.waveform_peaks(mix, points_per_second=20)
     assert 90 <= len(peaks) <= 110 and max(peaks) <= 1.0
 

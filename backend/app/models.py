@@ -173,6 +173,7 @@ class MediaProject(Base):
     dubbed_video_key: Mapped[str | None] = mapped_column(Text)
     subtitles_srt_key: Mapped[str | None] = mapped_column(Text)
     subtitles_vtt_key: Mapped[str | None] = mapped_column(Text)
+    poster_key: Mapped[str | None] = mapped_column(Text)
     waveform_peaks: Mapped[dict | None] = mapped_column(JSONB)
     estimated_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

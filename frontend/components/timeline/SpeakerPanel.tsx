@@ -32,15 +32,15 @@ export function SpeakerPanel({ speakers, voices, onPatch, onClone, cloningEnable
             <label className="sr-only" htmlFor={`name-${sp.id}`}>Spiker nomi</label>
             <input id={`name-${sp.id}`} defaultValue={sp.display_name ?? sp.speaker_tag}
                    onBlur={(e) => e.target.value !== sp.display_name && onPatch(sp.id, { display_name: e.target.value })}
-                   className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-1 py-0.5 font-semibold hover:border-line focus:border-info focus:outline-none" />
+                   className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-1 py-0.5 font-semibold hover:border-field-edge focus:border-info focus:outline-none" />
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${sp.tts_tier === "TIER_1" ? "bg-accent/15 text-accent" : "bg-info/15 text-info"}`}
                   title={sp.tts_tier === "TIER_1" ? "1-daraja: ElevenLabs" : "2-daraja: Gemini"}>
               {sp.tts_tier === "TIER_1" ? "T1" : "T2"}
             </span>
           </div>
           <p className="text-xs text-muted">
-            {GENDER_LABEL[sp.detected_gender]} · {AGE_LABEL[sp.detected_age_group]} · {Number(sp.speech_seconds).toFixed(0)} s nutq
-            {sp.words_per_second ? ` · ${Number(sp.words_per_second).toFixed(1)} soʻz/s` : ""}
+            {GENDER_LABEL[sp.detected_gender]}, {AGE_LABEL[sp.detected_age_group].toLowerCase()}, {Number(sp.speech_seconds).toFixed(0)} s nutq
+            {sp.words_per_second ? `, ${Number(sp.words_per_second).toFixed(1)} soʻz/s` : ""}
           </p>
           <div>
             <label className="label" htmlFor={`voice-${sp.id}`}>Ovoz aktyori</label>
@@ -52,7 +52,7 @@ export function SpeakerPanel({ speakers, voices, onPatch, onClone, cloningEnable
               {playing === sp.id ? <Square className="size-3.5" /> : <Play className="size-3.5" />} Asl ovoz
             </button>
             <button type="button" className="btn-secondary min-h-9 flex-1 text-xs" disabled={!cloningEnabled || !sp.sample_url || sp.is_custom_cloned}
-                    onClick={() => onClone(sp.id)} title="ElevenLabs Instant Voice Cloning — faqat huquqiga ega boʻlgan ovozlar uchun">
+                    onClick={() => onClone(sp.id)} title="ElevenLabs Instant Voice Cloning: faqat huquqiga ega boʻlgan ovozlar uchun">
               <Copy className="size-3.5" /> {sp.is_custom_cloned ? "Klonlangan" : "Klonlash"}
             </button>
           </div>

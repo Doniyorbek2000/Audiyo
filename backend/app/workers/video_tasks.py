@@ -106,6 +106,8 @@ def separate_stems(project_id: uuid.UUID) -> None:
             raise RuntimeError("Videoda audio yoʻlakcha topilmadi")
         audio = ffmpeg.extract_audio(src, wd / "original.wav", channels=2)
         duration = ffmpeg.duration_seconds(audio)
+        poster = ffmpeg.poster_frame(src, wd / "poster.jpg", at_seconds=min(1.0, duration / 2))
+        poster_key = storage.upload_file(poster, _key(project_id, "poster.jpg"), "image/jpeg") if poster else None
         project_stage(project_id, "STEM_SEPARATION", "Vokal va fon ajratilmoqda (Demucs)", 5)
         stems = separation.separate(audio, wd / "stems")
         project_stage(project_id, "STEM_SEPARATION", f"Ajratildi ({stems.method}), yuklanmoqda", 12)
@@ -124,6 +126,7 @@ def separate_stems(project_id: uuid.UUID) -> None:
         p.original_audio_key = keys["original"]
         p.isolated_vocal_key = keys["vocals"]
         p.isolated_bgm_key = keys["bgm"]
+        p.poster_key = poster_key
         p.waveform_peaks = {"duration": duration, **peaks}
     set_project_status(project_id, ProjectStatus.STEM_SEPARATION, f"Ovoz ajratildi ({stems.method})")
     transcribe.delay(str(project_id))

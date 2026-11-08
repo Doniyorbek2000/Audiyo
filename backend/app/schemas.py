@@ -133,6 +133,7 @@ class TimelineOut(BaseModel):
     segments: list[SegmentOut]
     pending_changes: int
     video_url: str | None
+    poster_url: str | None = None
 
 
 class SegmentPatch(BaseModel):

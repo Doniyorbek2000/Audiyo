@@ -171,6 +171,7 @@ async def timeline(project: ProjectDep, session: SessionDep) -> TimelineOut:
         segments=[_segment_out(s) for s in segments],
         pending_changes=await _pending_changes(session, project.id),
         video_url=storage.presigned_url(project.dubbed_video_key or project.source_video_key),
+        poster_url=storage.presigned_url(project.poster_key),
     )
 
 

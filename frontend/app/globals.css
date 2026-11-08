@@ -1,52 +1,90 @@
+/* Hallmark · shape: app screen · genre: atmospheric · theme: custom · redesign: polish · built: the project
+ * paper: oklch(0.13 0.02 280) · accent: oklch(0.56 0.22 15) · display: Plus Jakarta Sans · body: Plus Jakarta Sans
+ * nav: kept (sidebar shell) · signature: kept (multi-track timeline) · states: default hover focus-visible active disabled loading error empty
+ * axes: dark/geometric-sans/chromatic-red · posture: kept · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P3 H3 E4 S3 R4 V3 · weakest: hierarchy, labels moved to sentence case and meta strings de-dotted */
 @import "tailwindcss";
 
-/* Audiyo dizayn tizimi — design-system/audiyo/MASTER.md (Dark Mode OLED, Plus Jakarta Sans) */
-@theme {
+/* Tokenlar (design-system/audiyo/MASTER.md asosida, OKLCH da aralashtirilgan) */
+@theme static {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  --color-bg: #05050c;
-  --color-surface: #0f0f23;
-  --color-surface-2: #1e1b4b;
-  --color-elevated: #17153a;
-  --color-line: #2b2856;
-  --color-fg: #f8fafc;
-  --color-muted: #a9acc9;
-  --color-accent: #e11d48;
-  --color-accent-hover: #f43f5e;
-  --color-info: #818cf8;
-  --color-ok: #22c55e;
-  --color-warn: #f59e0b;
-  --color-danger: #f87171;
+  --color-bg: oklch(0.13 0.02 280);
+  --color-surface: oklch(0.18 0.04 280);
+  --color-surface-2: oklch(0.26 0.09 279);
+  --color-elevated: oklch(0.22 0.07 280);
+  --color-line: oklch(0.31 0.08 280);
+  --color-field-edge: oklch(0.55 0.05 280); /* maydon chegarasi: fonga nisbatan ≥ 3:1 */
+  --color-fg: oklch(0.96 0.008 280);
+  --color-muted: oklch(0.78 0.03 280);
+  --color-accent: oklch(0.56 0.22 15);
+  --color-accent-hover: oklch(0.61 0.21 15);
+  --color-accent-ink: oklch(0.99 0.01 15);
+  --color-info: oklch(0.7 0.15 277);
+  --color-ok: oklch(0.76 0.17 150);
+  --color-warn: oklch(0.81 0.15 75);
+  --color-danger: oklch(0.73 0.16 25);
+
+  /* Spikerlar (vaqt jadvali regionlari va belgilar) */
+  --color-spk-1: oklch(0.74 0.14 277);
+  --color-spk-2: oklch(0.74 0.15 350);
+  --color-spk-3: oklch(0.78 0.14 160);
+  --color-spk-4: oklch(0.83 0.14 85);
+  --color-spk-5: oklch(0.74 0.13 245);
+  --color-spk-6: oklch(0.76 0.15 50);
+  --color-spk-7: oklch(0.72 0.15 300);
+  --color-spk-8: oklch(0.79 0.12 190);
+  --color-spk-none: oklch(0.6 0.03 260);
+
+  /* Audio yoʻlakchalari */
+  --color-track-original: oklch(0.52 0.03 260);
+  --color-track-vocals: oklch(0.6 0.17 277);
+  --color-track-bgm: oklch(0.6 0.1 185);
+  --color-track-dubbed: oklch(0.56 0.22 15);
 }
 
 @layer base {
-  html { color-scheme: dark; }
-  body {
-    @apply bg-bg text-fg font-sans antialiased;
-    line-height: 1.55;
+  html {
+    color-scheme: dark;
+    scrollbar-color: var(--color-line) var(--color-bg);
   }
+  html, body { overflow-x: clip; }
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    caret-color: var(--color-accent);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
+  p { text-wrap: pretty; }
   :focus-visible {
     outline: 2px solid var(--color-info);
     outline-offset: 2px;
     border-radius: 6px;
+    transition: none;
   }
-  ::selection { background: color-mix(in srgb, var(--color-accent) 40%, transparent); }
+  ::selection { background: color-mix(in oklch, var(--color-accent) 40%, transparent); color: var(--color-fg); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled, input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; opacity: 0.5; }
 }
 
 @utility card { @apply rounded-2xl border border-line bg-surface; }
 @utility btn {
-  @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold
+  @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-semibold
     transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50;
 }
-@utility btn-primary { @apply btn bg-accent text-white hover:bg-accent-hover; }
+@utility btn-primary { @apply btn bg-accent text-accent-ink hover:bg-accent-hover; }
 @utility btn-secondary { @apply btn border border-line bg-elevated text-fg hover:bg-surface-2; }
 @utility btn-ghost { @apply btn text-muted hover:bg-elevated hover:text-fg; }
 @utility input {
-  @apply w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text-fg placeholder:text-muted/70
+  @apply w-full rounded-xl border border-field-edge bg-bg px-3 py-2 text-sm text-fg placeholder:text-muted/70
     transition-colors duration-200 focus:border-info focus:outline-none;
 }
-@utility label { @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted; }
+/* Yorliqlar: matn shrifti, bir pogʻona kichik, oddiy registr (katta harflar va tracking yoʻq) */
+@utility label { @apply mb-1.5 block text-sm font-medium text-muted; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

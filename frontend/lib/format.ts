@@ -9,7 +9,7 @@ export function formatTime(seconds: number, withMs = true): string {
 }
 
 export function formatDuration(ms: number | null | undefined): string {
-  if (!ms) return "—";
+  if (!ms) return "0:00";
   return formatTime(ms / 1000, false);
 }
 
@@ -26,7 +26,16 @@ export function dateTime(iso: string): string {
   return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export const SPEAKER_COLORS = ["#818cf8", "#f472b6", "#34d399", "#fbbf24", "#60a5fa", "#fb923c", "#a78bfa", "#2dd4bf"];
+/** Spiker ranglari: globals.css dagi tokenlar (CSS da toʻgʻridan-toʻgʻri ishlatiladi). */
+export const SPEAKER_COLORS = Array.from({ length: 8 }, (_, i) => `var(--color-spk-${i + 1})`);
+export const NO_SPEAKER_COLOR = "var(--color-spk-none)";
+
+/** Canvas (WaveSurfer) CSS oʻzgaruvchilarini tushunmaydi: tokenni haqiqiy qiymatga aylantiradi. */
+export function resolveColor(value: string): string {
+  const m = /^var\((--[\w-]+)\)$/.exec(value);
+  if (!m || typeof window === "undefined") return value;
+  return getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() || value;
+}
 
 export const GENDER_LABEL: Record<string, string> = { MALE: "Erkak", FEMALE: "Ayol", UNKNOWN: "Nomaʼlum" };
 export const AGE_LABEL: Record<string, string> = {
@@ -38,7 +47,7 @@ export const EMOTION_LABEL: Record<string, string> = {
   curious: "Qiziquvchan", hesitant: "Ikkilangan", anxious: "Xavotirli",
 };
 export const MODE_LABEL: Record<string, string> = {
-  PREMIUM: "Premium — hammasi ElevenLabs",
-  BALANCED: "Muvozanat — asosiylar ElevenLabs, qolgani Gemini",
-  BUDGET: "Tejamkor — hammasi Gemini",
+  PREMIUM: "Premium: hammasi ElevenLabs",
+  BALANCED: "Muvozanat: asosiylar ElevenLabs, qolgani Gemini",
+  BUDGET: "Tejamkor: hammasi Gemini",
 };

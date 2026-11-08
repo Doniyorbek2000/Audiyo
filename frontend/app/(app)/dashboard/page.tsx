@@ -28,7 +28,7 @@ function UploadVideo({ onDone }: { onDone: (p: Project) => void }) {
     setPct(0);
     try {
       const project = await uploadWithProgress<Project>("/projects/upload", form, setPct);
-      toast("Video yuklandi — qayta ishlash boshlandi", "ok");
+      toast("Video yuklandi, qayta ishlash boshlandi", "ok");
       onDone(project);
     } catch (err) {
       toast((err as Error).message, "danger");
@@ -57,12 +57,12 @@ function UploadVideo({ onDone }: { onDone: (p: Project) => void }) {
         </Field>
       </div>
       <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 text-sm">
-        <input type="checkbox" name="review_before_tts" className="mt-0.5 size-4 accent-[#e11d48]" />
+        <input type="checkbox" name="review_before_tts" className="mt-0.5 size-4 accent-accent" />
         <span><span className="font-semibold">Ovozlashtirishdan oldin tekshirish</span>
-          <span className="block text-muted">Tarjimadan keyin toʻxtaydi — ssenariyni tahrirlab, soʻng dublyajni boshlaysiz.</span></span>
+          <span className="block text-muted">Tarjimadan keyin toʻxtaydi: ssenariyni tahrirlab, soʻng dublyajni boshlaysiz.</span></span>
       </label>
       {pct !== null && <ProgressBar value={pct} label="Yuklash" />}
-      <button type="submit" className="btn-primary w-full" disabled={pct !== null}>
+      <button type="submit" className="btn-primary w-full whitespace-nowrap" disabled={pct !== null}>
         {pct !== null ? <><Spinner /> Yuklanmoqda {pct}%</> : <><Upload aria-hidden className="size-4" /> Yuklash va boshlash</>}
       </button>
     </form>
@@ -78,7 +78,7 @@ function UploadBook({ onDone }: { onDone: (b: Book) => void }) {
     setPct(0);
     try {
       const book = await uploadWithProgress<Book>("/books/upload", new FormData(e.currentTarget), setPct);
-      toast("Kitob yuklandi — tahlil boshlandi", "ok");
+      toast("Kitob yuklandi, tahlil boshlandi", "ok");
       onDone(book);
     } catch (err) {
       toast((err as Error).message, "danger");
@@ -88,7 +88,7 @@ function UploadBook({ onDone }: { onDone: (b: Book) => void }) {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Field label="Kitob fayli" htmlFor="b-file" hint="EPUB, FB2, DOCX, PDF yoki TXT · 50 MB gacha · oʻzbekcha (lotin/kirill)">
+      <Field label="Kitob fayli" htmlFor="b-file" hint="EPUB, FB2, DOCX, PDF yoki TXT, 50 MB gacha. Oʻzbekcha matn (lotin yoki kirill).">
         <input id="b-file" name="file" type="file" required accept=".epub,.fb2,.docx,.pdf,.txt" className="input cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-fg" />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -102,7 +102,7 @@ function UploadBook({ onDone }: { onDone: (b: Book) => void }) {
       </Field>
       <p className="text-xs text-muted">Tahlildan soʻng personajlar, ovozlar va talaffuzni tekshirasiz; sintez narxi oldindan koʻrsatiladi.</p>
       {pct !== null && <ProgressBar value={pct} label="Yuklash" />}
-      <button type="submit" className="btn-primary w-full" disabled={pct !== null}>
+      <button type="submit" className="btn-primary w-full whitespace-nowrap" disabled={pct !== null}>
         {pct !== null ? <><Spinner /> Yuklanmoqda {pct}%</> : <><Upload aria-hidden className="size-4" /> Yuklash</>}
       </button>
     </form>
@@ -167,9 +167,9 @@ function Dashboard() {
       {tab === "all" && (
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <Stat label="Balans" value={usd(user?.credit_balance_usd)} />
-          <Stat label="Video loyihalar" value={projects.data?.length ?? "—"} sub={`${ready} tasi tayyor`} />
+          <Stat label="Video loyihalar" value={projects.data?.length ?? "…"} sub={`${ready} tasi tayyor`} />
           <Stat label="Dublyaj daqiqalari" value={minutes.toFixed(1)} />
-          <Stat label="Audiokitoblar" value={books.data?.length ?? "—"} />
+          <Stat label="Audiokitoblar" value={books.data?.length ?? "…"} />
         </div>
       )}
 
@@ -183,12 +183,12 @@ function Dashboard() {
               {projects.data.map((p) => (
                 <ItemCard key={p.id} href={`/projects/${p.id}`} title={p.title} status={p.status}
                           progress={Number(p.progress)} error={p.status === "FAILED" ? p.error_message : null}
-                          sub={`${p.source_language.toUpperCase()} → UZ · ${p.duration_seconds ? formatTime(Number(p.duration_seconds), false) : "—"} · ${dateTime(p.created_at)}`} />
+                          sub={`${p.source_language.toUpperCase()} dan oʻzbekchaga, ${p.duration_seconds ? formatTime(Number(p.duration_seconds), false) : "uzunligi aniqlanmoqda"}, ${dateTime(p.created_at)}`} />
               ))}
             </div>
           ) : (
             <EmptyState icon={<FileAudio className="size-7" />} title="Hali video yoʻq">
-              Birinchi videoni yuklang — Audiyo ovozni ajratadi, tarjima qiladi va oʻzbekcha dublyaj tayyorlaydi.
+              Birinchi videoni yuklang. Audiyo ovozni ajratadi, tarjima qiladi va oʻzbekcha dublyaj tayyorlaydi.
             </EmptyState>
           )}
         </section>
@@ -204,12 +204,12 @@ function Dashboard() {
               {books.data.map((b) => (
                 <ItemCard key={b.id} href={`/books/${b.id}`} title={b.title} status={b.status}
                           progress={Number(b.progress)} error={b.status === "FAILED" ? b.error_message : null}
-                          sub={`${b.author ?? "Muallif koʻrsatilmagan"} · ${b.source_format.toUpperCase()} · ${b.total_chars?.toLocaleString("uz") ?? "—"} belgi`} />
+                          sub={`${b.author ?? "Muallif koʻrsatilmagan"}, ${b.source_format.toUpperCase()}${b.total_chars ? `, ${b.total_chars.toLocaleString("uz")} belgi` : ""}`} />
               ))}
             </div>
           ) : (
             <EmptyState icon={<BookOpen className="size-7" />} title="Hali kitob yoʻq">
-              EPUB, FB2, DOCX, PDF yoki TXT faylni yuklang — boblar, personajlar va talaffuz avtomatik tayyorlanadi.
+              EPUB, FB2, DOCX, PDF yoki TXT faylni yuklang: boblar, personajlar va talaffuz avtomatik tayyorlanadi.
             </EmptyState>
           )}
         </section>

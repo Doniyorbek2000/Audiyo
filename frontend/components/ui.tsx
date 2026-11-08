@@ -48,8 +48,8 @@ export function ProgressBar({ value, label }: { value: number; label?: string })
   return (
     <div role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100} aria-label={label ?? "Jarayon"}
          className="h-2 w-full overflow-hidden rounded-full bg-elevated">
-      <div className="h-full rounded-full bg-gradient-to-r from-info to-accent transition-[width] duration-500"
-           style={{ width: `${v}%` }} />
+      <div className="h-full w-full origin-left rounded-full bg-accent transition-transform duration-500"
+           style={{ transform: `scaleX(${v / 100})` }} />
     </div>
   );
 }
@@ -134,7 +134,7 @@ export function Field({ label, htmlFor, hint, children }: { label: string; htmlF
 export function Stat({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) {
   return (
     <div className="card p-5">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</div>
+      <div className="text-sm text-muted">{label}</div>
       <div className="mt-2 text-2xl font-bold tabular-nums">{value}</div>
       {sub && <div className="mt-1 text-xs text-muted">{sub}</div>}
     </div>

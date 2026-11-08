@@ -73,6 +73,16 @@ celery -A app.workers.celery_app worker -Q gpu,cpu,io -c 2   # GPU paketlarisiz:
 cd frontend && npm install && npm run dev                    # http://localhost:3000 (/api → :8000)
 ```
 
+### Dizayn sifati (Hallmark)
+
+UI `hallmark` skilli bilan tekshiriladi ("AI qilgandek" koʻrinish belgilari, kontrast, holatlar, tokenlar):
+
+```bash
+node .claude/skills/hallmark/scripts/sloplint.mjs frontend/app frontend/components --scope app
+# brauzerda (puppeteer-core + Chrome kerak):
+node .claude/skills/hallmark/scripts/sloplint.mjs frontend/app/globals.css --render --url http://localhost:3000/
+```
+
 ### Testlar
 
 ```bash
@@ -109,6 +119,7 @@ backend/   FastAPI, SQLAlchemy, Celery ishchilari, migrations/, tests/
 frontend/  Next.js App Router, Tailwind v4, WaveSurfer.js
 infra/     Nginx
 design-system/audiyo/MASTER.md  UI dizayn tizimi (ui-ux-pro-max skill)
+.claude/skills/   ui-ux-pro-max va hallmark (Claude Code skillari)
 ```
 
 ## Cheklovlar va keyingi qadamlar

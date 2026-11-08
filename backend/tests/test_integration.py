@@ -229,6 +229,7 @@ async def test_video_pipeline_end_to_end(client, env, sample_video):
     assert all(s["status"] == "ALIGNED" for s in tl["segments"])
     assert all(0.85 <= float(s["tempo_ratio"]) <= 1.25 for s in tl["segments"])
     assert tl["stems"]["vocals"].startswith("https://s3.test/") and tl["pending_changes"] == 0
+    assert tl["poster_url"].endswith("poster.jpg")
     assert {"original", "vocals", "bgm", "dubbed"} <= set(tl["peaks"])
     tiers = {sp["speaker_tag"]: sp["tts_tier"] for sp in tl["speakers"]}
     assert tiers == {"SPEAKER_00": "TIER_1", "SPEAKER_01": "TIER_1"}

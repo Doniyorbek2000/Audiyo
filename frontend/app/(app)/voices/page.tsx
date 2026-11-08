@@ -29,14 +29,14 @@ export default function VoicesPage() {
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-2xl font-bold sm:text-3xl">Ovozlar reyestri</h1>
-          <p className="mt-1 text-muted">1-daraja — ElevenLabs (asosiy qahramonlar), 2-daraja — Gemini (ikkilamchi va budjet).</p>
+          <p className="mt-1 text-muted">1-daraja: ElevenLabs (asosiy qahramonlar). 2-daraja: Gemini (ikkilamchi va budjet).</p>
         </div>
         <div className="flex gap-2">
           <label htmlFor="vf" className="sr-only">Provayder</label>
           <select id="vf" className="input w-auto cursor-pointer" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
             <option value="all">Barchasi</option><option value="elevenlabs">ElevenLabs</option><option value="gemini">Gemini</option>
           </select>
-          <button type="button" className="btn-secondary" onClick={sync} disabled={syncing}>
+          <button type="button" className="btn-secondary whitespace-nowrap" onClick={sync} disabled={syncing}>
             {syncing ? <Spinner /> : <RefreshCw aria-hidden className="size-4" />} ElevenLabs bilan sinxronlash
           </button>
         </div>
@@ -55,7 +55,7 @@ export default function VoicesPage() {
                   {v.is_narrator && <span className="rounded-full bg-elevated px-2 text-[11px] font-bold text-muted">Hikoyachi</span>}
                 </div>
                 <p className="text-xs text-muted">
-                  {v.provider === "elevenlabs" ? "ElevenLabs" : "Gemini"} · {GENDER_LABEL[v.gender]} · {AGE_LABEL[v.age_group]}
+                  {v.provider === "elevenlabs" ? "ElevenLabs" : "Gemini"}, {GENDER_LABEL[v.gender].toLowerCase()}, {AGE_LABEL[v.age_group].toLowerCase()}
                 </p>
                 {v.description && <p className="mt-1 line-clamp-2 text-xs text-muted">{v.description}</p>}
               </div>

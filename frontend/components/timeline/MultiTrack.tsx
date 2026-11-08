@@ -4,7 +4,7 @@ import { Pause, Play, SkipBack, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin, { type Region } from "wavesurfer.js/dist/plugins/regions.esm.js";
-import { formatTime, SPEAKER_COLORS } from "@/lib/format";
+import { formatTime, NO_SPEAKER_COLOR, resolveColor, SPEAKER_COLORS } from "@/lib/format";
 import type { Segment, Speaker, Timeline } from "@/lib/types";
 
 type SourceKey = "original" | "dubbed_mix" | "vocals" | "bgm" | "dubbed_dialogue";
@@ -18,10 +18,10 @@ const SOURCES: { key: SourceKey; label: string }[] = [
 ];
 
 const TRACKS: { key: "original" | "vocals" | "bgm" | "dubbed"; label: string; color: string }[] = [
-  { key: "original", label: "Asl", color: "#475569" },
-  { key: "vocals", label: "Vokal", color: "#6366f1" },
-  { key: "bgm", label: "Fon", color: "#0d9488" },
-  { key: "dubbed", label: "Dublyaj", color: "#e11d48" },
+  { key: "original", label: "Asl", color: "var(--color-track-original)" },
+  { key: "vocals", label: "Vokal", color: "var(--color-track-vocals)" },
+  { key: "bgm", label: "Fon", color: "var(--color-track-bgm)" },
+  { key: "dubbed", label: "Dublyaj", color: "var(--color-track-dubbed)" },
 ];
 
 export interface MultiTrackProps {
@@ -76,13 +76,15 @@ export function MultiTrack({ timeline, selectedId, onSelect, onRetime, seekTo, v
     const audio = audioRef.current;
     if (!audio || !duration) return;
     const created: WaveSurfer[] = [];
+    const cursor = resolveColor("var(--color-fg)");
     for (const track of TRACKS) {
       const el = containers.current[track.key];
       const peaks = timeline.peaks?.[track.key];
       if (!el || !peaks?.length) continue;
       created.push(WaveSurfer.create({
         container: el, height: 44, media: audio, peaks: [peaks], duration, normalize: true,
-        waveColor: track.color, progressColor: track.color + "cc", cursorColor: "#f8fafc", cursorWidth: 1,
+        waveColor: resolveColor(track.color), cursorColor: cursor, cursorWidth: 1,
+        progressColor: resolveColor(track.color),
         barWidth: 2, barGap: 1, barRadius: 2, minPxPerSec: zoom, hideScrollbar: true, autoScroll: true,
         autoCenter: false, dragToSeek: true,
       }));
@@ -92,7 +94,7 @@ export function MultiTrack({ timeline, selectedId, onSelect, onRetime, seekTo, v
       const flat = new Array(Math.max(2, Math.ceil(duration))).fill(0);
       const ws = WaveSurfer.create({
         container: segLane.current, height: 56, media: audio, peaks: [flat], duration,
-        waveColor: "transparent", progressColor: "transparent", cursorColor: "#f8fafc", cursorWidth: 1,
+        waveColor: "transparent", progressColor: "transparent", cursorColor: cursor, cursorWidth: 1,
         minPxPerSec: zoom, hideScrollbar: false, autoScroll: true, interact: true,
       });
       const regions = ws.registerPlugin(RegionsPlugin.create());
@@ -156,7 +158,7 @@ export function MultiTrack({ timeline, selectedId, onSelect, onRetime, seekTo, v
     regions.clearRegions();
     for (const s of timeline.segments) {
       const sp = timeline.speakers.find((x) => x.id === s.speaker_id);
-      const color = s.speaker_id ? speakerColor[s.speaker_id] : "#64748b";
+      const color = s.speaker_id ? speakerColor[s.speaker_id] : NO_SPEAKER_COLOR;
       // WaveSurfer Shadow DOM ichida chiziladi — Tailwind klasslari ishlamaydi, inline uslub
       const label = document.createElement("div");
       Object.assign(label.style, {
@@ -167,7 +169,7 @@ export function MultiTrack({ timeline, selectedId, onSelect, onRetime, seekTo, v
       label.textContent = `${sp?.display_name ?? "?"}: ${s.translated_text_uz ?? s.original_text}`;
       regions.addRegion({
         id: s.id, start: Number(s.start_time), end: Number(s.end_time), drag: true, resize: true, minLength: 0.2,
-        color: `${color}${s.id === selectedId ? "88" : "40"}`, content: label,
+        color: `color-mix(in oklch, ${color} ${s.id === selectedId ? 55 : 25}%, transparent)`, content: label,
       });
     }
     const onUpdate = (r: Region) => onRetime(r.id, Math.round(r.start * 1000) / 1000, Math.round(r.end * 1000) / 1000);
@@ -226,7 +228,7 @@ export function MultiTrack({ timeline, selectedId, onSelect, onRetime, seekTo, v
           <ZoomIn aria-hidden className="size-4" />
           <label htmlFor="mt-zoom" className="sr-only">Masshtab</label>
           <input id="mt-zoom" type="range" min={10} max={300} value={zoom} onChange={(e) => setZoom(Number(e.target.value))}
-                 className="w-32 cursor-pointer accent-[#818cf8]" />
+                 className="w-32 cursor-pointer accent-info" />
         </div>
       </div>
 
@@ -271,7 +273,7 @@ function SpeakerLegend({ speakers, colors }: { speakers: Speaker[]; colors: Reco
           {s.display_name ?? s.speaker_tag}
         </span>
       ))}
-      <span className="ml-auto hidden sm:inline">Probel — ijro/pauza · regionni surib vaqtni oʻzgartiring</span>
+      <span className="ml-auto hidden sm:inline">Probel bilan ijro va pauza. Vaqtni oʻzgartirish uchun regionni suring.</span>
     </div>
   );
 }

@@ -62,6 +62,15 @@ def to_wav(src: str | Path, dst: str | Path, *, channels: int = 1, sample_rate: 
     return extract_audio(src, dst, channels=channels, sample_rate=sample_rate)
 
 
+def poster_frame(src: str | Path, dst: str | Path, at_seconds: float = 1.0, width: int = 1280) -> Path | None:
+    """Videodan JPEG kadr (audio fayl boʻlsa — None)."""
+    if not has_stream(src, "video"):
+        return None
+    run(["-ss", f"{at_seconds:.2f}", "-i", str(src), "-frames:v", "1", "-vf", f"scale='min({width},iw)':-2",
+         "-q:v", "3", str(dst)])
+    return Path(dst) if Path(dst).exists() else None
+
+
 def cut(src: str | Path, dst: str | Path, start: float, end: float) -> Path:
     run(["-ss", f"{start:.3f}", "-to", f"{end:.3f}", "-i", str(src), "-c:a", "pcm_s16le", str(dst)])
     return Path(dst)
