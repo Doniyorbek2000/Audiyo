@@ -1,0 +1,6 @@
+# GPU ishchi uchun qoʻshimcha paketlar (CUDA image ichida oʻrnatiladi).
+# whisperx oʻzi mos pyannote.audio va torch versiyalarini tortadi.
+-r requirements.txt
+demucs==4.0.1
+whisperx==3.8.6
+numpy
