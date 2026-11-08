@@ -29,6 +29,7 @@ async def lifespan(_: FastAPI):
 
 settings = get_settings()
 app = FastAPI(title="Audiyo API", version="1.0.0", lifespan=lifespan,
+              docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json",
               description="Oʻzbekcha AI video dublyaj va audiokitob platformasi")
 app.add_middleware(
     CORSMiddleware,

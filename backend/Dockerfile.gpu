@@ -1,0 +1,17 @@
+# GPU ishchi: Demucs v4 + WhisperX + pyannote (navbat: gpu)
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt requirements-gpu.txt ./
+RUN pip install -r requirements-gpu.txt
+COPY . .
+
+# Modellarni oldindan yuklash (birinchi ish tez boshlanishi uchun) — ixtiyoriy
+ARG PRELOAD_MODELS=0
+RUN if [ "$PRELOAD_MODELS" = "1" ]; then python -c "from demucs.pretrained import get_model; get_model('htdemucs')"; fi
+
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "gpu", "--concurrency", "1", "--loglevel", "INFO"]

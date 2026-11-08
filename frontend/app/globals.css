@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+/* Audiyo dizayn tizimi — design-system/audiyo/MASTER.md (Dark Mode OLED, Plus Jakarta Sans) */
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-bg: #05050c;
+  --color-surface: #0f0f23;
+  --color-surface-2: #1e1b4b;
+  --color-elevated: #17153a;
+  --color-line: #2b2856;
+  --color-fg: #f8fafc;
+  --color-muted: #a9acc9;
+  --color-accent: #e11d48;
+  --color-accent-hover: #f43f5e;
+  --color-info: #818cf8;
+  --color-ok: #22c55e;
+  --color-warn: #f59e0b;
+  --color-danger: #f87171;
+}
+
+@layer base {
+  html { color-scheme: dark; }
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    line-height: 1.55;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-info);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  ::selection { background: color-mix(in srgb, var(--color-accent) 40%, transparent); }
+}
+
+@utility card { @apply rounded-2xl border border-line bg-surface; }
+@utility btn {
+  @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold
+    transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary { @apply btn bg-accent text-white hover:bg-accent-hover; }
+@utility btn-secondary { @apply btn border border-line bg-elevated text-fg hover:bg-surface-2; }
+@utility btn-ghost { @apply btn text-muted hover:bg-elevated hover:text-fg; }
+@utility input {
+  @apply w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text-fg placeholder:text-muted/70
+    transition-colors duration-200 focus:border-info focus:outline-none;
+}
+@utility label { @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

@@ -32,7 +32,10 @@ Ierarxik, “eng katta mantiqiy birlikdan pastga” tamoyili:
 2. **Paragraf** — boʻsh qator.
 3. **Dialog bloki** — satr boshidagi `—`/`–`/`-` yoki `«…»` / `"…"` ichidagi matn alohida blok; muallif izohi (`— dedi Anvar.`) hikoyachi blokiga ajratiladi.
 4. **Uzun paragraf** > 2000 belgi boʻlsa: gap chegarasi (`. ! ? …` + katta harf) boʻyicha boʻlinadi; gap ham uzun boʻlsa — `; :` keyin `,` boʻyicha. Hech qachon soʻz oʻrtasida kesilmaydi.
-5. **Birlashtirish** — ketma-ket, bir spikerga tegishli, jami ≤ 2000 belgili qisqa bloklar bitta TTS soʻroviga birlashtiriladi (API chaqiruvlar sonini kamaytirish).
+5. **Birlashtirish** — bir paragraf ichidagi hikoya gaplari bitta blokda qoladi (≤ 2000 belgi). Paragraflar orasida birlashtirilmaydi: har blok alohida tahrirlanadi va faqat oʻzgargani qayta sintez qilinadi.
+6. **Sarlavhasiz boshlangʻich matn** (masalan, kitob nomi) alohida «Kirish» boʻlimi boʻladi.
+
+> Amalga oshirilgan: `backend/app/services/text/segmenter.py`, `parsers.py`, `pauses.py`, `lexicon.py`, `backend/app/services/llm/attribution.py`, `backend/app/workers/book_tasks.py`.
 
 Natija sxemasi (JSON, har bir blok):
 

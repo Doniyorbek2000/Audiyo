@@ -1,0 +1,129 @@
+# Audiyo — toʻliq stek. Ishga tushirish: cp .env.example .env && docker compose up -d --build
+# GPU boʻlmagan mashinada: docker compose -f docker-compose.yml -f docker-compose.cpu.yml up -d --build
+
+x-backend-env: &backend-env
+  ENVIRONMENT: ${ENVIRONMENT:-production}
+  DATABASE_URL: postgresql+psycopg://audiyo:${POSTGRES_PASSWORD:-audiyo}@postgres:5432/audiyo
+  REDIS_URL: redis://redis:6379/0
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET kerak}
+  CORS_ORIGINS: '["${PUBLIC_URL:-http://localhost}"]'
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:-audiyo}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:-audiyo-minio-secret}
+  S3_BUCKET: audiyo
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+  HF_TOKEN: ${HF_TOKEN:-}
+  PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-}
+  ELEVENLABS_USD_PER_1K_CHARS: ${ELEVENLABS_USD_PER_1K_CHARS:-0.30}
+  GEMINI_TTS_USD_PER_1K_CHARS: ${GEMINI_TTS_USD_PER_1K_CHARS:-0.02}
+  PLATFORM_MARKUP: ${PLATFORM_MARKUP:-1.5}
+  GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-2.5-flash-preview-tts}
+  GEMINI_TEXT_MODEL: ${GEMINI_TEXT_MODEL:-gemini-2.5-flash}
+  WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+  WORK_DIR: /tmp/audiyo
+
+x-backend: &backend
+  build: ./backend
+  restart: unless-stopped
+  environment: *backend-env
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    minio: { condition: service_started }
+    migrate: { condition: service_completed_successfully }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: audiyo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-audiyo}
+      POSTGRES_DB: audiyo
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U audiyo"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-audiyo}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-audiyo-minio-secret}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${PUBLIC_URL:-http://localhost}
+    ports: ["9000:9000", "9001:9001"]   # 9000 — presigned URL lar uchun, 9001 — konsol
+    volumes: [miniodata:/data]
+
+  migrate:
+    build: ./backend
+    environment: *backend-env
+    command: ["python", "-m", "app.migrate"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    <<: *backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 15s
+      retries: 5
+
+  # IO navbati: LLM tarjima, TTS API chaqiruvlari, S3 — yuqori parallellik
+  worker-io:
+    <<: *backend
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "io", "--concurrency", "8", "-n", "io@%h", "--loglevel", "INFO"]
+
+  # CPU navbati: FFmpeg vaqt moslash, mikslash, eksport
+  worker-cpu:
+    <<: *backend
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "cpu", "--concurrency", "2", "-n", "cpu@%h", "--loglevel", "INFO"]
+
+  # GPU navbati: Demucs + WhisperX (NVIDIA Container Toolkit kerak)
+  worker-gpu:
+    <<: *backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.gpu
+    environment:
+      <<: *backend-env
+      WHISPER_DEVICE: cuda
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "gpu", "--concurrency", "1", "-n", "gpu@%h", "--loglevel", "INFO"]
+    volumes: [modelcache:/root/.cache]
+    deploy:
+      resources:
+        reservations:
+          devices: [{ driver: nvidia, count: 1, capabilities: [gpu] }]
+
+  frontend:
+    build:
+      context: ./frontend
+      args: { NEXT_PUBLIC_API_URL: /api/v1 }
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports: ["80:80"]
+    volumes: ["./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro"]
+    depends_on: [api, frontend]
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  modelcache:

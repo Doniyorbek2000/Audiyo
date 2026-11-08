@@ -1,0 +1,7 @@
+# GPU siz muhit uchun override: WhisperX va Demucs CPU da ishlaydi (sekin, lekin toʻliq funksional).
+services:
+  worker-gpu:
+    environment:
+      WHISPER_DEVICE: cpu
+      WHISPER_MODEL: ${WHISPER_MODEL:-medium}
+    deploy: !reset {}
